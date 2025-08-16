@@ -14,10 +14,10 @@ echo "=== RCTV Kiosk Build and Install on Raspberry Pi ==="
 echo "This will install dependencies, build the app, and set up the service."
 echo ""
 
-# Check if running as pi user
-if [[ $USER != "pi" ]]; then
-   echo "This script should be run as the pi user, not root."
-   echo "If you need to run as root, remove this check."
+# Check if running as root (we want to avoid this)
+if [[ $EUID -eq 0 ]]; then
+   echo "This script should not be run as root."
+   echo "Please run as a regular user (like rctv, pi, etc.)"
    exit 1
 fi
 
@@ -121,6 +121,7 @@ else
 fi
 
 echo "8. Setting up systemd service..."
+USER_ID=$(id -u)
 sudo tee /etc/systemd/system/rctv-kiosk.service > /dev/null << EOF
 [Unit]
 Description=RCTV Kiosk
@@ -129,11 +130,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
+User=$USER
+Group=$USER
 Environment=DISPLAY=:0
 Environment=WAYLAND_DISPLAY=wayland-0
-Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=XDG_RUNTIME_DIR=/run/user/$USER_ID
 ExecStart=/usr/local/bin/rctv-kiosk --token $TOKEN
 Restart=always
 RestartSec=10
@@ -149,7 +150,7 @@ EOF
 
 # Create log directory
 sudo mkdir -p /var/log/rctv-kiosk
-sudo chown pi:pi /var/log/rctv-kiosk
+sudo chown $USER:$USER /var/log/rctv-kiosk
 
 # Enable and start service
 sudo systemctl daemon-reload
