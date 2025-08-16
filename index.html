@@ -2,42 +2,87 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="stylesheet" href="/src/styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri App</title>
-    <script type="module" src="/src/main.ts" defer></script>
+    <title>RCTV</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #000;
+        color: #fff;
+        font-family: sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        cursor: none;
+      }
+      .loading {
+        text-align: center;
+        font-size: 24px;
+      }
+      .update-status {
+        font-size: 16px;
+        color: #888;
+        margin-top: 20px;
+      }
+    </style>
   </head>
 
   <body>
-    <main class="container">
-      <h1>Welcome to Tauri</h1>
+    <div class="loading">
+      rctv loading, one moment please
+      <div class="update-status" id="update-status">checking for updates...</div>
+    </div>
+    
+    <script type="module">
+      import { check } from '@tauri-apps/plugin-updater';
+      import { ask, message } from '@tauri-apps/plugin-dialog';
+      import { getCurrentWebview } from '@tauri-apps/api/webview';
 
-      <div class="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/src/assets/vite.svg" class="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img
-            src="/src/assets/tauri.svg"
-            class="logo tauri"
-            alt="Tauri logo"
-          />
-        </a>
-        <a href="https://www.typescriptlang.org/docs" target="_blank">
-          <img
-            src="/src/assets/typescript.svg"
-            class="logo typescript"
-            alt="typescript logo"
-          />
-        </a>
-      </div>
-      <p>Click on the Tauri logo to learn more about the framework</p>
+      let isCheckingForUpdates = false;
 
-      <form class="row" id="greet-form">
-        <input id="greet-input" placeholder="Enter a name..." />
-        <button type="submit">Greet</button>
-      </form>
-      <p id="greet-msg"></p>
-    </main>
+      async function checkForUpdates(showStatus = true) {
+        if (isCheckingForUpdates) return;
+        isCheckingForUpdates = true;
+        
+        const statusEl = document.getElementById('update-status');
+        try {
+          if (showStatus && statusEl) {
+            statusEl.textContent = 'checking for updates...';
+          }
+          
+          const update = await check();
+          if (update === null) {
+            if (showStatus && statusEl) statusEl.textContent = 'update check failed';
+            return;
+          } else if (update?.available) {
+            if (showStatus && statusEl) statusEl.textContent = `update ${update.version} found - installing automatically...`;
+            console.log(`Auto-installing update ${update.version}: ${update.body}`);
+            
+            // Automatically install without user prompt - this is a kiosk!
+            await update.downloadAndInstall();
+            // App will restart automatically after update
+          } else {
+            if (showStatus && statusEl) statusEl.textContent = 'up to date';
+            console.log('No updates available');
+          }
+        } catch (error) {
+          console.error('Update check failed:', error);
+          if (showStatus && statusEl) statusEl.textContent = 'update check error';
+        } finally {
+          isCheckingForUpdates = false;
+        }
+      }
+
+      // Listen for periodic update check events from Rust
+      getCurrentWebview().listen('check-for-updates', () => {
+        console.log('Periodic update check triggered');
+        checkForUpdates(false); // Don't show status for background checks
+      });
+
+      // Initial check for updates after a short delay
+      setTimeout(() => checkForUpdates(true), 2000);
+    </script>
   </body>
 </html>
