@@ -2,7 +2,32 @@
 
 This directory contains installation scripts for deploying RCTV Kiosk on a Raspberry Pi 5 running Raspberry Pi OS (Debian-based).
 
-## Quick Installation
+## Recommended: Build on Pi (Native)
+
+The simplest and most reliable approach is to build directly on your Raspberry Pi:
+
+1. **One-command install:**
+   ```bash
+   curl -sSL https://raw.githubusercontent.com/gregsadetsky/rctv-tauri/main/_raspi-files/build-on-pi.sh | bash -s YOUR_TOKEN_HERE
+   ```
+
+   Or download and run:
+   ```bash
+   wget https://raw.githubusercontent.com/gregsadetsky/rctv-tauri/main/_raspi-files/build-on-pi.sh
+   chmod +x build-on-pi.sh
+   ./build-on-pi.sh YOUR_TOKEN_HERE
+   ```
+
+This will:
+- Install all dependencies (Rust, Node.js, system libraries)
+- Clone and build the application (15-20 minutes)
+- Generate signing keys for auto-updates
+- Install as a systemd service
+- Start automatically
+
+## Alternative: Pre-built Packages
+
+If available, you can try downloading pre-built packages:
 
 1. **Download and run the installer:**
    ```bash

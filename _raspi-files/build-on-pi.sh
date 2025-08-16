@@ -1,0 +1,172 @@
+#!/bin/bash
+# RCTV Kiosk Build and Install Script for Raspberry Pi
+set -e
+
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <TOKEN>"
+    echo "Example: $0 FF47F231-DF00-40D2-BFF7-E36E3E472805"
+    exit 1
+fi
+
+TOKEN=$1
+
+echo "=== RCTV Kiosk Build and Install on Raspberry Pi ==="
+echo "This will install dependencies, build the app, and set up the service."
+echo ""
+
+# Check if running as pi user
+if [[ $USER != "pi" ]]; then
+   echo "This script should be run as the pi user, not root."
+   echo "If you need to run as root, remove this check."
+   exit 1
+fi
+
+echo "1. Installing system dependencies..."
+sudo apt-get update
+sudo apt-get install -y \
+    curl \
+    wget \
+    git \
+    build-essential \
+    libwebkit2gtk-4.1-dev \
+    libgtk-3-dev \
+    libayatana-appindicator3-dev \
+    librsvg2-dev \
+    libssl-dev \
+    pkg-config \
+    libasound2-dev
+
+echo "2. Installing Node.js..."
+if ! command -v node &> /dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+else
+    echo "Node.js already installed: $(node --version)"
+fi
+
+echo "3. Installing Rust..."
+if ! command -v cargo &> /dev/null; then
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source $HOME/.cargo/env
+else
+    echo "Rust already installed: $(cargo --version)"
+fi
+
+echo "4. Cloning RCTV source code..."
+cd /tmp
+rm -rf rctv-tauri
+git clone https://github.com/gregsadetsky/rctv-tauri.git
+cd rctv-tauri
+
+echo "5. Installing Node.js dependencies..."
+npm install
+
+echo "6. Building application (this may take 15-20 minutes)..."
+echo "Building with signing keys for auto-updates..."
+
+# Set up signing environment
+export TAURI_SIGNING_PRIVATE_KEY_PATH="$HOME/.tauri/rctv-kiosk.key"
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+
+# Create signing keys if they don't exist
+if [ ! -f "$HOME/.tauri/rctv-kiosk.key" ]; then
+    echo "Generating signing keys for auto-updates..."
+    mkdir -p ~/.tauri
+    echo "Enter a password for the signing key (remember this!):"
+    npm run tauri signer generate -- -w ~/.tauri/rctv-kiosk.key
+    echo ""
+    echo "IMPORTANT: Save your signing key password! You'll need it for future builds."
+    echo "Your signing keys are in ~/.tauri/"
+    echo ""
+fi
+
+# Get the signing key password
+echo "Enter your signing key password:"
+read -s TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+
+# Build the application
+npm run tauri build
+
+echo "7. Installing the built application..."
+# Find the built .deb file
+DEB_FILE=$(find src-tauri/target/release/bundle/deb -name "*.deb" | head -1)
+
+if [ -z "$DEB_FILE" ]; then
+    echo "No .deb file found, trying AppImage..."
+    APPIMAGE_FILE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" | head -1)
+    
+    if [ -z "$APPIMAGE_FILE" ]; then
+        echo "No built files found! Build may have failed."
+        exit 1
+    fi
+    
+    # Install AppImage
+    sudo mkdir -p /opt/rctv-kiosk
+    sudo cp "$APPIMAGE_FILE" /opt/rctv-kiosk/rctv-kiosk.AppImage
+    sudo chmod +x /opt/rctv-kiosk/rctv-kiosk.AppImage
+    sudo ln -sf /opt/rctv-kiosk/rctv-kiosk.AppImage /usr/local/bin/rctv-kiosk
+    echo "Installed AppImage to /opt/rctv-kiosk/"
+else
+    # Install .deb package
+    echo "Installing .deb package: $DEB_FILE"
+    sudo dpkg -i "$DEB_FILE" || sudo apt-get install -f -y
+    
+    # Find the installed binary and link it
+    BINARY_PATH=$(which rctv-tauri || find /usr -name "rctv-tauri" 2>/dev/null | head -1)
+    if [ -n "$BINARY_PATH" ]; then
+        sudo ln -sf "$BINARY_PATH" /usr/local/bin/rctv-kiosk
+        echo "Installed .deb package and linked binary"
+    fi
+fi
+
+echo "8. Setting up systemd service..."
+sudo tee /etc/systemd/system/rctv-kiosk.service > /dev/null << EOF
+[Unit]
+Description=RCTV Kiosk
+After=network-online.target graphical-session.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+ExecStart=/usr/local/bin/rctv-kiosk --token $TOKEN
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Disable screen blanking for kiosk
+ExecStartPre=/bin/bash -c 'export DISPLAY=:0 && xset s off -dpms || true'
+
+[Install]
+WantedBy=graphical.target
+EOF
+
+# Create log directory
+sudo mkdir -p /var/log/rctv-kiosk
+sudo chown pi:pi /var/log/rctv-kiosk
+
+# Enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable rctv-kiosk.service
+
+echo ""
+echo "=== Installation Complete! ==="
+echo ""
+echo "Commands:"
+echo "  Start:   sudo systemctl start rctv-kiosk"
+echo "  Stop:    sudo systemctl stop rctv-kiosk"
+echo "  Status:  sudo systemctl status rctv-kiosk"
+echo "  Logs:    sudo journalctl -u rctv-kiosk -f"
+echo ""
+echo "Test manually first:"
+echo "  rctv-kiosk --token $TOKEN"
+echo ""
+echo "The service will start automatically on boot."
+echo ""
+echo "Your signing keys are in ~/.tauri/ - keep them safe for future builds!"
