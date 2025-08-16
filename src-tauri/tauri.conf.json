@@ -40,7 +40,7 @@
     },
     "updater": {
       "endpoints": ["https://raw.githubusercontent.com/gregsadetsky/rctv-tauri/main/latest.json"],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEExOUM0NEQ1MDUzOTdFODkKUldTSmZqa0YxVVNjb1VLeS9RcFFUVkIvTEhkY3ZURjliSlQ5Um1lc3NGcXpsSitoUXN1RDB6T3UK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkyN0E0MzM5MTI4NjU1NTUKUldSVlZZWVNPVU42a2s0aUZHU240Wmg4V1hNc21tYkFMSFhqUWhTSUlIY2puN0xNZ045SFo0SlIK"
     }
   },
   "bundle": {
