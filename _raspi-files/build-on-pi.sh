@@ -4,7 +4,7 @@ set -e
 
 if [ "$#" -ne 1 ]; then
     echo "Usage: $0 <TOKEN>"
-    echo "Example: $0 FF47F231-DF00-40D2-BFF7-E36E3E472805"
+    echo "Example: $0 DEADBEEF-..."
     exit 1
 fi
 
