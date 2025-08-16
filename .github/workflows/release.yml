@@ -21,10 +21,18 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Download cross-compilation script
+      - name: Download cross-compilation files
         run: |
+          # Download the main script
           wget https://raw.githubusercontent.com/Shiritai/xc-tauri-rasp/refs/heads/main/xcompile.sh
           chmod +x xcompile.sh
+          
+          # Download Dockerfile
+          wget https://raw.githubusercontent.com/Shiritai/xc-tauri-rasp/refs/heads/main/Dockerfile
+          
+          # Download and setup .cargo config
+          mkdir -p .cargo
+          wget -O .cargo/config.toml https://raw.githubusercontent.com/Shiritai/xc-tauri-rasp/refs/heads/main/.cargo/config.toml
 
       - name: Cross-compile for Raspberry Pi ARM64
         env:
@@ -34,11 +42,24 @@ jobs:
           # Run cross-compilation for ARM64 Raspberry Pi
           ./xcompile.sh -e bookworm -n rctv-tauri -p . -a arm64 -t ./target
 
-      - name: Find generated files
+      - name: Find and prepare generated files
         run: |
-          find ./target -name "*.deb" -o -name "*.AppImage" -o -name "*.tar.gz" | head -10
-          ls -la ./src-tauri/target/ || true
-          ls -la ./target/ || true
+          echo "=== Finding generated files ==="
+          find . -name "*.deb" -o -name "*.AppImage" -o -name "*.tar.gz" | head -10
+          
+          echo "=== Looking for .deb files specifically ==="
+          find . -name "*arm64*.deb" -o -name "*aarch64*.deb" | head -5
+          
+          # Find the actual .deb file and copy it to a known location
+          DEB_FILE=$(find . -name "*arm64*.deb" -o -name "*aarch64*.deb" | head -1)
+          if [ -n "$DEB_FILE" ]; then
+            echo "Found .deb file: $DEB_FILE"
+            cp "$DEB_FILE" ./rctv-kiosk-arm64.deb
+            ls -la ./rctv-kiosk-arm64.deb
+          else
+            echo "No .deb file found!"
+            exit 1
+          fi
 
       - name: Create Release
         id: create_release
@@ -48,7 +69,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           release_name: 'RCTV Kiosk ${{ github.ref_name }}'
-          body: 'Automated release for Raspberry Pi kiosk with auto-updater (ARM64 native build)'
+          body: 'Automated release for Raspberry Pi kiosk with auto-updater (ARM64 native build via Docker cross-compilation)'
           draft: false
           prerelease: false
 
@@ -59,6 +80,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./target/rctv-tauri_*_arm64.deb
+          asset_path: ./rctv-kiosk-arm64.deb
           asset_name: rctv-kiosk-arm64.deb
           asset_content_type: application/vnd.debian.binary-package
