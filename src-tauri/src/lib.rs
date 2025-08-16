@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::{Manager};
+use tauri::{Manager, Emitter};
 use tauri_plugin_cli::CliExt;
 use url::Url;
 use serde::Deserialize;
