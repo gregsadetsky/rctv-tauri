@@ -18,6 +18,12 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
+# Get the actual user who called sudo (not root)
+ACTUAL_USER=${SUDO_USER:-$USER}
+ACTUAL_USER_ID=$(id -u "$ACTUAL_USER")
+
+echo "Setting up service for user: $ACTUAL_USER (ID: $ACTUAL_USER_ID)"
+
 # Create the service file
 cat > /etc/systemd/system/rctv-kiosk.service << EOF
 [Unit]
@@ -27,19 +33,17 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
+User=$ACTUAL_USER
+Group=$ACTUAL_USER
 Environment=DISPLAY=:0
 Environment=WAYLAND_DISPLAY=wayland-0
-Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=XDG_RUNTIME_DIR=/run/user/$ACTUAL_USER_ID
+Environment=WEBKIT_DISABLE_COMPOSITING_MODE=1
 ExecStart=/usr/local/bin/rctv-kiosk --token $TOKEN
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-
-# Disable screen blanking for kiosk
-ExecStartPre=/bin/bash -c 'export DISPLAY=:0 && xset s off -dpms || true'
 
 [Install]
 WantedBy=graphical.target
