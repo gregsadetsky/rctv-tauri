@@ -16,10 +16,16 @@ sudo mkdir -p /var/log/rctv-kiosk
 
 # Download latest release
 echo "Downloading latest RCTV Kiosk release..."
+# Try ARM64 first, fall back to x86_64 (which will run under emulation on Pi 5)
 LATEST_URL=$(curl -s https://api.github.com/repos/gregsadetsky/rctv-tauri/releases/latest | grep "browser_download_url.*aarch64.*AppImage" | cut -d '"' -f 4)
 
 if [ -z "$LATEST_URL" ]; then
-    echo "Error: Could not find latest release download URL"
+    echo "ARM64 build not found, using x86_64 build (will run under emulation)..."
+    LATEST_URL=$(curl -s https://api.github.com/repos/gregsadetsky/rctv-tauri/releases/latest | grep "browser_download_url.*AppImage" | cut -d '"' -f 4 | head -1)
+fi
+
+if [ -z "$LATEST_URL" ]; then
+    echo "Error: Could not find any AppImage in latest release"
     exit 1
 fi
 
