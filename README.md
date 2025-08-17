@@ -2,13 +2,23 @@
 
 ## how to dev/test
 
-```
+```bash
 # In development:
 npm run tauri build
 ./src-tauri/target/release/rctv-tauri --token YOUR_TOKEN_HERE
 
 # Or after building for production:
 ./rctv-tauri --token YOUR_TOKEN_HERE
+```
+
+## HOW TO RE-BUILD ON THE PI
+
+```bash
+# token below taken from the rctv django web project
+curl -sSL https://raw.githubusercontent.com/gregsadetsky/rctv-tauri/refs/heads/main/_raspi-files/build-on-pi.sh | bash -s DEADBEEF-.........
+
+# restart service
+sudo systemctl restart rctv-kiosk
 ```
 
 ---
