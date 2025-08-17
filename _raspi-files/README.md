@@ -8,7 +8,7 @@ The simplest and most reliable approach is to build directly on your Raspberry P
 
 1. **One-command install:**
    ```bash
-   curl -sSL https://raw.githubusercontent.com/gregsadetsky/rctv-tauri/main/_raspi-files/build-on-pi.sh | bash -s YOUR_TOKEN_HERE
+   curl -sSL https://raw.githubusercontent.com/gregsadetsky/rctv-tauri/refs/heads/main/_raspi-files/build-on-pi.sh | bash -s YOUR_TOKEN_HERE
    ```
 
    Or download and run:
