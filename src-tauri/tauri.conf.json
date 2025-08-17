@@ -13,12 +13,15 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "rctv-tauri",
-        "width": 800,
-        "height": 600,
+        "title": "RCTV Kiosk",
+        "width": 1920,
+        "height": 1080,
         "fullscreen": true,
         "decorations": false,
-        "resizable": false
+        "resizable": false,
+        "maximized": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true
       }
     ],
     "security": {
