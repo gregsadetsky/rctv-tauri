@@ -34,8 +34,7 @@ sudo apt-get install -y \
     librsvg2-dev \
     libssl-dev \
     pkg-config \
-    libasound2-dev \
-    unclutter
+    libasound2-dev
 
 echo "2. Installing Node.js..."
 if ! command -v node &> /dev/null; then
@@ -159,27 +158,6 @@ sudo chown $USER:$USER /var/log/rctv-kiosk
 # Enable and start service
 sudo systemctl daemon-reload
 sudo systemctl enable rctv-kiosk.service
-
-echo "9. Setting up systemd service for hiding the mouse..."
-sudo tee /etc/systemd/system/hidemouse.service > /dev/null << EOF
-[Unit]
-Description=Hide Mouse Cursor
-After=graphical.target
-
-[Service]
-Type=simple
-Environment=DISPLAY=:0
-ExecStart=/usr/bin/unclutter -idle 0.5 -root
-Restart=always
-User=$USER
-Group=$USER
-
-[Install]
-WantedBy=graphical.target
-EOF
-
-# Enable hidemouse service
-sudo systemctl enable hidemouse.service
 
 echo ""
 echo "=== Installation Complete! ==="
