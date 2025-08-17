@@ -64,19 +64,7 @@ pub fn run() {
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
-                    let mut last_update_check = Instant::now();
-                    let update_check_interval = Duration::from_secs(12 * 60 * 60); // 12 hours
-                    
                     loop {
-                        // Check for updates every 12 hours
-                        if last_update_check.elapsed() >= update_check_interval {
-                            if let Some(window) = app_handle.get_webview_window("main") {
-                                // Emit an event to trigger update check in frontend
-                                let _ = window.emit("check-for-updates", ());
-                            }
-                            last_update_check = Instant::now();
-                        }
-                        
                         match fetch_apps(&token).await {
                             Ok(apps) => {
                                 if !apps.is_empty() {
@@ -87,12 +75,10 @@ pub fn run() {
                                             }
                                         }
                                         tokio::time::sleep(Duration::from_secs(app.on_screen_duration_seconds)).await;
-                                        
-                                        // Check if it's time for an update check during URL cycling
-                                        if last_update_check.elapsed() >= update_check_interval {
-                                            break; // Break out of app loop to check for updates
-                                        }
                                     }
+                                } else {
+                                    // If no apps, wait a bit before trying again
+                                    tokio::time::sleep(Duration::from_secs(60)).await;
                                 }
                             }
                             Err(e) => {
