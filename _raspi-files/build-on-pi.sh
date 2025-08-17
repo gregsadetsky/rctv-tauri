@@ -84,8 +84,9 @@ if [ ! -f "$HOME/.tauri/rctv-kiosk.key" ]; then
 fi
 
 # Get the signing key password
-echo "Enter your signing key password:"
-read -s TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+read -s -p "Enter your signing key password: " TAURI_SIGNING_PRIVATE_KEY_PASSWORD < /dev/tty
+# Add a newline since the prompt from read -s doesn't add one
+echo
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 
 # Build the application
