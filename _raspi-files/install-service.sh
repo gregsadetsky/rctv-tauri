@@ -49,9 +49,34 @@ StandardError=journal
 WantedBy=graphical.target
 EOF
 
-# Reload systemd and enable the service
+# Install unclutter for mouse hiding
+apt-get update
+apt-get install -y unclutter
+
+# Create mouse hiding service
+cat > /etc/systemd/system/hide-mouse.service << EOF
+[Unit]
+Description=Hide mouse cursor
+After=graphical-session.target
+
+[Service]
+Type=simple
+User=$ACTUAL_USER
+Group=$ACTUAL_USER
+Environment=DISPLAY=:0
+ExecStart=/usr/bin/unclutter -idle 0.5
+Restart=always
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical.target
+EOF
+
+# Reload systemd and enable both services
 systemctl daemon-reload
 systemctl enable rctv-kiosk.service
+systemctl enable hide-mouse.service
 
 echo "Service installed successfully!"
 echo ""
