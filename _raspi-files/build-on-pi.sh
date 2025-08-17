@@ -64,30 +64,29 @@ npm install
 echo "6. Building application (this may take 15-20 minutes)..."
 echo "Building with signing keys for auto-updates..."
 
-# Set up signing environment
+# Set up signing environment from files
+# IMPORTANT: This script now assumes two files exist:
+# 1. The private key at ~/.tauri/rctv-kiosk.key
+# 2. The password for the key in a file at ~/.tauri/rctv-kiosk.password
+
 PRIVATE_KEY_PATH="$HOME/.tauri/rctv-kiosk.key"
-if [ -f "$PRIVATE_KEY_PATH" ]; then
-    export TAURI_SIGNING_PRIVATE_KEY=$(cat "$PRIVATE_KEY_PATH")
-fi
-export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+PASSWORD_PATH="$HOME/.tauri/rctv-kiosk.password"
 
-# Create signing keys if they don't exist
-if [ ! -f "$HOME/.tauri/rctv-kiosk.key" ]; then
-    echo "Generating signing keys for auto-updates..."
-    mkdir -p ~/.tauri
-    echo "Enter a password for the signing key (remember this!):"
-    npm run tauri signer generate -- -w ~/.tauri/rctv-kiosk.key
-    echo ""
-    echo "IMPORTANT: Save your signing key password! You'll need it for future builds."
-    echo "Your signing keys are in ~/.tauri/"
-    echo ""
+if [ ! -f "$PRIVATE_KEY_PATH" ]; then
+    echo "ERROR: Signing key not found at $PRIVATE_KEY_PATH"
+    echo "Please create it and the password file before running this script."
+    exit 1
 fi
 
-# Get the signing key password
-read -s -p "Enter your signing key password: " TAURI_SIGNING_PRIVATE_KEY_PASSWORD < /dev/tty
-# Add a newline since the prompt from read -s doesn't add one
-echo
-export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+if [ ! -f "$PASSWORD_PATH" ]; then
+    echo "ERROR: Signing key password file not found at $PASSWORD_PATH"
+    echo "Please create it before running this script."
+    exit 1
+fi
+
+echo "Loading signing key and password from files..."
+export TAURI_SIGNING_PRIVATE_KEY=$(cat "$PRIVATE_KEY_PATH")
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$(cat "$PASSWORD_PATH")
 
 # Build the application
 npm run tauri build
