@@ -138,6 +138,7 @@ Group=$USER
 Environment=DISPLAY=:0
 Environment=WAYLAND_DISPLAY=wayland-0
 Environment=XDG_RUNTIME_DIR=/run/user/$USER_ID
+Environment="WEBKIT_DISABLE_DMABUF_RENDERER=1"
 ExecStart=/usr/local/bin/rctv-kiosk --token $TOKEN
 Restart=always
 RestartSec=10
