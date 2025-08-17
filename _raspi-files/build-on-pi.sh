@@ -65,7 +65,10 @@ echo "6. Building application (this may take 15-20 minutes)..."
 echo "Building with signing keys for auto-updates..."
 
 # Set up signing environment
-export TAURI_SIGNING_PRIVATE_KEY_PATH="$HOME/.tauri/rctv-kiosk.key"
+PRIVATE_KEY_PATH="$HOME/.tauri/rctv-kiosk.key"
+if [ -f "$PRIVATE_KEY_PATH" ]; then
+    export TAURI_SIGNING_PRIVATE_KEY=$(cat "$PRIVATE_KEY_PATH")
+fi
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
 
 # Create signing keys if they don't exist
