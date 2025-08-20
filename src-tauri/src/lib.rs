@@ -142,16 +142,11 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     // Step 2: Wait for and click Google sign-in link with retries
     println!("Looking for Google sign-in link...");
     let google_button = loop {
-        match driver.find(By::XPath("//a[text()='Google']")).await {
+        match driver.find(By::XPath("//a[@aria-label='Sign in with Google']")).await {
             Ok(element) => break element,
             Err(_) => {
-                match driver.find(By::XPath("//a[contains(text(), 'Google')]")).await {
-                    Ok(element) => break element,
-                    Err(_) => {
-                        println!("Google sign-in link not found, retrying in 2 seconds...");
-                        tokio::time::sleep(Duration::from_secs(2)).await;
-                    }
-                }
+                println!("Google sign-in link not found, retrying in 2 seconds...");
+                tokio::time::sleep(Duration::from_secs(2)).await;
             }
         }
     };
