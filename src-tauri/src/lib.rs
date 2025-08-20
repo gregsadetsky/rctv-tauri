@@ -24,6 +24,7 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         .arg("--user-data-dir=/home/rctv/.rctv-chrome-profile")
         .arg("--autoplay-policy=no-user-gesture-required")
         .arg("--use-fake-ui-for-media-stream")
+        .arg("--no-sandbox")
         .arg("--enable-logging")
         .arg("--v=1")
         .stdout(Stdio::inherit()) // Show Chromium output
@@ -87,11 +88,11 @@ pub fn run() {
                             match &token_arg.value {
                                 serde_json::Value::String(s) if !s.is_empty() => s.clone(),
                                 serde_json::Value::Null => {
-                                    // Try reading from /root/.rctvtoken file as fallback
-                                    match std::fs::read_to_string("/root/.rctvtoken") {
+                                    // Try reading from /home/rctv/.rctvtoken file as fallback
+                                    match std::fs::read_to_string("/home/rctv/.rctvtoken") {
                                         Ok(token_from_file) => token_from_file.trim().to_string(),
                                         Err(_) => {
-                                            eprintln!("Error: --token argument is required or /root/.rctvtoken file must exist");
+                                            eprintln!("Error: --token argument is required or /home/rctv/.rctvtoken file must exist");
                                             std::process::exit(1);
                                         }
                                     }
@@ -103,11 +104,11 @@ pub fn run() {
                             }
                         }
                         None => {
-                            // Try reading from /root/.rctvtoken file as fallback
-                            match std::fs::read_to_string("/root/.rctvtoken") {
+                            // Try reading from /home/rctv/.rctvtoken file as fallback
+                            match std::fs::read_to_string("/home/rctv/.rctvtoken") {
                                 Ok(token_from_file) => token_from_file.trim().to_string(),
                                 Err(_) => {
-                                    eprintln!("Error: --token argument is required or /root/.rctvtoken file must exist");
+                                    eprintln!("Error: --token argument is required or /home/rctv/.rctvtoken file must exist");
                                     std::process::exit(1);
                                 }
                             }
