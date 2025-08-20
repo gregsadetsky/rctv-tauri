@@ -2,25 +2,32 @@ use std::sync::Arc;
 use std::time::Duration;
 use tauri::Manager;
 use tauri_plugin_cli::CliExt;
-use url::Url;
-use serde::Deserialize;
+use thirtyfour::prelude::*;
 
-#[derive(Deserialize)]
-struct App {
-    url: String,
-    on_screen_duration_seconds: u64,
-}
 
-#[derive(Deserialize)]
-struct ApiResponse {
-    apps: Vec<App>,
-}
-
-async fn fetch_apps(token: &str) -> Result<Vec<App>, Box<dyn std::error::Error + Send + Sync>> {
-    let url = format!("https://rctv.recurse.com/get_all_apps_for_tauri?tv_login_token={}", token);
-    let response = reqwest::get(&url).await?;
-    let api_response: ApiResponse = response.json().await?;
-    Ok(api_response.apps)
+async fn start_chromium_controller() -> WebDriverResult<()> {
+    // Create Chrome capabilities
+    let mut caps = DesiredCapabilities::chrome();
+    caps.add_arg("--no-sandbox")?;
+    caps.add_arg("--disable-dev-shm-usage")?;
+    caps.add_arg("--use-fake-ui-for-media-stream")?;
+    caps.add_arg("--use-fake-device-for-media-stream")?;
+    caps.add_arg("--allow-running-insecure-content")?;
+    caps.add_arg("--disable-web-security")?;
+    caps.add_arg("--disable-features=VizDisplayCompositor")?;
+    
+    // Start ChromeDriver (assumes it's running on port 9515)
+    let driver = WebDriver::new("http://localhost:9515", caps).await?;
+    
+    // Navigate to example.com
+    driver.goto("https://example.com").await?;
+    
+    println!("Successfully opened example.com in Chromium");
+    
+    // Keep the browser open
+    loop {
+        tokio::time::sleep(Duration::from_secs(60)).await;
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -33,11 +40,11 @@ pub fn run() {
                 let _ = window.set_cursor_visible(true);
             }
 
-            let app_handle = Arc::new(app.handle().clone());
+            let _app_handle = Arc::new(app.handle().clone());
             
             // Get CLI arguments
             let cli_matches = app.cli().matches();
-            let token = match cli_matches {
+            let _token = match cli_matches {
                 Ok(matches) => {
                     match matches.args.get("token") {
                         Some(token_arg) => {
@@ -77,24 +84,16 @@ pub fn run() {
                 }
             };
             
-            // Navigate to specific Zoom URL
-            if let Some(window) = app.get_webview_window("main") {
-                // Enable camera and microphone permissions
-                let _ = window.eval(r#"
-                    navigator.mediaDevices.getUserMedia({video: true, audio: true})
-                        .then(function(stream) {
-                            console.log('Media permissions granted');
-                        })
-                        .catch(function(err) {
-                            console.log('Media permissions denied:', err);
-                        });
-                "#);
-                
-                let zoom_url = "https://app.zoom.us/wc/2125949362/join?fromPWA=1&pwd=OEJ3Nkw4djlmSlBBVWl2aVdXTk93Zz09";
-                if let Ok(parsed_url) = Url::parse(zoom_url) {
-                    let _ = window.navigate(parsed_url);
-                }
-            }
+            // Start Chromium controller in background thread
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    match start_chromium_controller().await {
+                        Ok(_) => println!("Chromium controller started successfully"),
+                        Err(e) => eprintln!("Failed to start Chromium controller: {}", e),
+                    }
+                });
+            });
             
             Ok(())
         })
