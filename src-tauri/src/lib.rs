@@ -223,13 +223,35 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     'outer: loop {
         join_attempts += 1;
         println!("Join button attempt #{}", join_attempts);
-        // Try to find join button in main page first
-        let join_button_result = match driver.find(By::XPath("//button[contains(text(), 'Join')]")).await {
-            Ok(element) => Ok(element),
-            Err(_) => match driver.find(By::XPath("//input[@value='Join']")).await {
-                Ok(element) => Ok(element),
-                Err(_) => driver.find(By::XPath("//*[contains(text(), 'Join')]")).await,
-            },
+        // Find ALL Join buttons and check which ones are actually visible
+        println!("Searching for ALL Join buttons to find visible one...");
+        let join_button_result = match driver.find_all(By::XPath("//*[contains(text(), 'Join')]")).await {
+            Ok(buttons) => {
+                println!("Found {} total Join buttons, checking visibility...", buttons.len());
+                let mut visible_button = None;
+                
+                for (i, button) in buttons.iter().enumerate() {
+                    let display = button.css_value("display").await.unwrap_or_default();
+                    let visibility = button.css_value("visibility").await.unwrap_or_default();
+                    let is_displayed = button.is_displayed().await.unwrap_or(false);
+                    println!("Button {} - display: {}, visibility: {}, is_displayed: {}", i, display, visibility, is_displayed);
+                    
+                    if display != "none" && visibility != "hidden" && is_displayed {
+                        println!("Found visible Join button #{}", i);
+                        visible_button = Some(button.clone());
+                        break;
+                    }
+                }
+                
+                match visible_button {
+                    Some(button) => Ok(button),
+                    None => {
+                        println!("No visible Join button found in main page");
+                        Err(WebDriverError::FatalError("No visible Join button found".to_string()))
+                    }
+                }
+            }
+            Err(e) => Err(e)
         };
         
         let join_button = match join_button_result {
