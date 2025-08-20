@@ -73,10 +73,10 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     println!("Connecting ChromeDriver to existing Chromium...");
     let driver = WebDriver::new("http://localhost:9515", caps).await?;
     
-    // Navigate to example.com
-    driver.goto("https://example.com").await?;
+    // Navigate to Zoom meeting
+    driver.goto("https://app.zoom.us/wc/2125949362/join?fromPWA=1&pwd=OEJ3Nkw4djlmSlBBVWl2aVdXTk93Zz09").await?;
     
-    println!("Successfully opened example.com in Chromium");
+    println!("Successfully opened Zoom meeting in Chromium");
     
     // Keep the browser open
     loop {
