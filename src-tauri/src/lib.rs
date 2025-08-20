@@ -42,7 +42,17 @@ pub fn run() {
                     match matches.args.get("token") {
                         Some(token_arg) => {
                             match &token_arg.value {
-                                serde_json::Value::String(s) => s.clone(),
+                                serde_json::Value::String(s) if !s.is_empty() => s.clone(),
+                                serde_json::Value::Null => {
+                                    // Try reading from /root/.rctvtoken file as fallback
+                                    match std::fs::read_to_string("/root/.rctvtoken") {
+                                        Ok(token_from_file) => token_from_file.trim().to_string(),
+                                        Err(_) => {
+                                            eprintln!("Error: --token argument is required or /root/.rctvtoken file must exist");
+                                            std::process::exit(1);
+                                        }
+                                    }
+                                }
                                 _ => {
                                     eprintln!("Error: --token argument must be a string");
                                     std::process::exit(1);
