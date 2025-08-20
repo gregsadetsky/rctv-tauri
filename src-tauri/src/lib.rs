@@ -781,17 +781,61 @@ async fn start_hid_controller(token: String, app_handle: Arc<tauri::AppHandle>, 
                     
                     // Start Zoom automation in background task
                     let state_clone = Arc::clone(&state);
+                    let app_handle_clone = Arc::clone(&app_handle);
+                    let token_clone = token.clone();
                     tokio::spawn(async move {
-                        match start_chromium_controller().await {
-                            Ok(_) => {
-                                println!("Zoom automation completed successfully");
-                                let mut state_guard = state_clone.lock().unwrap();
-                                *state_guard = AutomationState::ZoomComplete;
+                        // Start the zoom automation
+                        let zoom_result = tokio::spawn(async move {
+                            start_chromium_controller().await
+                        });
+                        
+                        // Start the 1-hour timeout
+                        let timeout_task = tokio::spawn(async move {
+                            tokio::time::sleep(Duration::from_secs(60 * 60)).await; // 1 hour
+                            println!("1-hour Zoom timeout reached!");
+                        });
+                        
+                        // Wait for either zoom to complete or timeout
+                        tokio::select! {
+                            zoom_res = zoom_result => {
+                                match zoom_res {
+                                    Ok(Ok(_)) => {
+                                        println!("Zoom automation completed successfully");
+                                        let mut state_guard = state_clone.lock().unwrap();
+                                        *state_guard = AutomationState::ZoomComplete;
+                                    }
+                                    Ok(Err(e)) => {
+                                        println!("Zoom automation failed: {}", e);
+                                        let mut state_guard = state_clone.lock().unwrap();
+                                        *state_guard = AutomationState::KioskMode;
+                                    }
+                                    Err(e) => {
+                                        println!("Zoom task panicked: {}", e);
+                                        let mut state_guard = state_clone.lock().unwrap();
+                                        *state_guard = AutomationState::KioskMode;
+                                    }
+                                }
                             }
-                            Err(e) => {
-                                println!("Zoom automation failed: {}", e);
+                            _ = timeout_task => {
+                                println!("Zoom session timed out after 1 hour, returning to kiosk mode");
+                                
+                                // Kill Chrome processes
+                                kill_chrome_processes().await;
+                                
+                                // Return to kiosk mode
                                 let mut state_guard = state_clone.lock().unwrap();
                                 *state_guard = AutomationState::KioskMode;
+                                
+                                // Show the Tauri window and restart kiosk mode
+                                if let Some(window) = app_handle_clone.get_webview_window("main") {
+                                    let _ = window.show();
+                                }
+                                
+                                // Start kiosk mode in background
+                                let state_for_kiosk = Arc::clone(&state_clone);
+                                tokio::spawn(async move {
+                                    let _ = start_kiosk_mode(token_clone, app_handle_clone, state_for_kiosk).await;
+                                });
                             }
                         }
                     });
