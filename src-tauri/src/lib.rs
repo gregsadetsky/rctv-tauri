@@ -1,22 +1,32 @@
 use std::sync::Arc;
 use std::time::Duration;
+use std::process::{Command, Stdio};
 use tauri::Manager;
 use tauri_plugin_cli::CliExt;
 use thirtyfour::prelude::*;
 
 
 async fn start_chromium_controller() -> WebDriverResult<()> {
-    // Create Chrome capabilities
+    // Start ChromeDriver process
+    println!("Starting ChromeDriver...");
+    let _chromedriver = Command::new("chromedriver")
+        .arg("--port=9515")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to start ChromeDriver - make sure it's installed");
+
+    // Wait a moment for ChromeDriver to start
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    // Create Chrome capabilities - ChromeDriver will start Chrome automatically
     let mut caps = DesiredCapabilities::chrome();
-    caps.add_arg("--no-sandbox")?;
-    caps.add_arg("--disable-dev-shm-usage")?;
-    caps.add_arg("--use-fake-ui-for-media-stream")?;
-    caps.add_arg("--use-fake-device-for-media-stream")?;
-    caps.add_arg("--allow-running-insecure-content")?;
-    caps.add_arg("--disable-web-security")?;
-    caps.add_arg("--disable-features=VizDisplayCompositor")?;
+    // Enable real camera and microphone access
+    caps.add_arg("--use-fake-ui-for-media-stream")?; // Auto-grant media permissions without user prompt
+    caps.add_arg("--autoplay-policy=no-user-gesture-required")?; // Allow autoplay for media
     
-    // Start ChromeDriver (assumes it's running on port 9515)
+    // Connect to ChromeDriver (which will automatically start Chrome)
+    println!("Connecting to ChromeDriver and starting Chrome...");
     let driver = WebDriver::new("http://localhost:9515", caps).await?;
     
     // Navigate to example.com
