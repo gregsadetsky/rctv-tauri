@@ -139,36 +139,59 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     sign_in_link.click().await?;
     println!("Clicked sign in link");
     
-    // Step 2: Wait for and click Google sign-in button with retries
-    println!("Looking for Google sign-in button...");
+    // Step 2: Wait for and click Google sign-in link with retries
+    println!("Looking for Google sign-in link...");
     let google_button = loop {
-        match driver.find(By::XPath("//*[@aria-label='Sign in with Google']")).await {
+        match driver.find(By::XPath("//a[text()='Google']")).await {
             Ok(element) => break element,
             Err(_) => {
-                println!("Google sign-in button not found, retrying in 2 seconds...");
-                tokio::time::sleep(Duration::from_secs(2)).await;
+                match driver.find(By::XPath("//a[contains(text(), 'Google')]")).await {
+                    Ok(element) => break element,
+                    Err(_) => {
+                        println!("Google sign-in link not found, retrying in 2 seconds...");
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                    }
+                }
             }
         }
     };
     google_button.click().await?;
     println!("Clicked Google sign-in button");
     
-    // Step 3: Wait for and click "Recurse RCTV" account
+    // Step 3: Wait for and click "Recurse RCTV" account with retries
     println!("Looking for Recurse RCTV account...");
-    tokio::time::sleep(Duration::from_secs(3)).await;
-    let recurse_account = driver.find(By::XPath("//div[contains(text(), 'Recurse RCTV')]")).await?;
+    let recurse_account = loop {
+        match driver.find(By::XPath("//div[contains(text(), 'Recurse RCTV')]")).await {
+            Ok(element) => break element,
+            Err(_) => {
+                println!("Recurse RCTV account not found, retrying in 2 seconds...");
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }
+    };
     recurse_account.click().await?;
     println!("Selected Recurse RCTV account");
     
-    // Step 4: Wait for and click "Join" button
+    // Step 4: Wait for and click "Join" button with retries
     println!("Looking for Join button...");
-    tokio::time::sleep(Duration::from_secs(5)).await;
-    let join_button = match driver.find(By::XPath("//button[contains(text(), 'Join')]")).await {
-        Ok(element) => element,
-        Err(_) => match driver.find(By::XPath("//input[@value='Join']")).await {
-            Ok(element) => element,
-            Err(_) => driver.find(By::XPath("//*[contains(text(), 'Join')]")).await?,
-        },
+    let join_button = loop {
+        match driver.find(By::XPath("//button[contains(text(), 'Join')]")).await {
+            Ok(element) => break element,
+            Err(_) => {
+                match driver.find(By::XPath("//input[@value='Join']")).await {
+                    Ok(element) => break element,
+                    Err(_) => {
+                        match driver.find(By::XPath("//*[contains(text(), 'Join')]")).await {
+                            Ok(element) => break element,
+                            Err(_) => {
+                                println!("Join button not found, retrying in 2 seconds...");
+                                tokio::time::sleep(Duration::from_secs(2)).await;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     };
     join_button.click().await?;
     println!("Clicked Join button - should now be in the meeting!");
