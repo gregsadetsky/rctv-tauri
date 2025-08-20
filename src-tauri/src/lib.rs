@@ -24,8 +24,10 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         .arg("--user-data-dir=/home/rctv/.rctv-chrome-profile")
         .arg("--autoplay-policy=no-user-gesture-required")
         .arg("--use-fake-ui-for-media-stream")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .arg("--enable-logging")
+        .arg("--v=1")
+        .stdout(Stdio::inherit()) // Show Chromium output
+        .stderr(Stdio::inherit())
         .spawn()
         .expect("Failed to start Chromium");
 
@@ -36,8 +38,10 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     println!("Starting ChromeDriver...");
     let _chromedriver = Command::new("chromedriver")
         .arg("--port=9515")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .arg("--verbose")
+        .arg("--log-path=/tmp/chromedriver.log")
+        .stdout(Stdio::inherit()) // Show ChromeDriver output
+        .stderr(Stdio::inherit())
         .spawn()
         .expect("Failed to start ChromeDriver");
 
