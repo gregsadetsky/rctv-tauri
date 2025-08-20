@@ -94,8 +94,7 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     // Step 1: Switch to iframe and click "sign in" link
     println!("Looking for iframe and sign in link...");
     
-    // Wait for iframe to load and switch to it
-    tokio::time::sleep(Duration::from_secs(3)).await;
+    // Find iframes immediately
     let iframes = driver.find_all(By::Tag("iframe")).await?;
     println!("Found {} iframes", iframes.len());
     
@@ -170,29 +169,59 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     recurse_account.click().await?;
     println!("Selected Recurse RCTV account");
     
-    // Step 4: Wait for and click "Join" button with retries
-    println!("Looking for Join button...");
-    let join_button = loop {
-        match driver.find(By::XPath("//button[contains(text(), 'Join')]")).await {
+    // Step 4: Wait for and click "Use microphone and camera" button with retries
+    println!("Looking for Use microphone and camera button...");
+    let mic_camera_button = loop {
+        match driver.find(By::XPath("//button[contains(text(), 'Use microphone and camera')]")).await {
             Ok(element) => break element,
             Err(_) => {
-                match driver.find(By::XPath("//input[@value='Join']")).await {
+                match driver.find(By::XPath("//*[contains(text(), 'Use microphone and camera')]")).await {
                     Ok(element) => break element,
                     Err(_) => {
-                        match driver.find(By::XPath("//*[contains(text(), 'Join')]")).await {
-                            Ok(element) => break element,
-                            Err(_) => {
-                                println!("Join button not found, retrying in 2 seconds...");
-                                tokio::time::sleep(Duration::from_secs(2)).await;
-                            }
-                        }
+                        println!("Use microphone and camera button not found, retrying in 2 seconds...");
+                        tokio::time::sleep(Duration::from_secs(2)).await;
                     }
                 }
             }
         }
     };
-    join_button.click().await?;
-    println!("Clicked Join button - should now be in the meeting!");
+    mic_camera_button.click().await?;
+    println!("Clicked Use microphone and camera button");
+    
+    // Step 5: Wait for and click "Join" button with retries (including click retries)
+    println!("Looking for Join button...");
+    loop {
+        let join_button = match driver.find(By::XPath("//button[contains(text(), 'Join')]")).await {
+            Ok(element) => element,
+            Err(_) => {
+                match driver.find(By::XPath("//input[@value='Join']")).await {
+                    Ok(element) => element,
+                    Err(_) => {
+                        match driver.find(By::XPath("//*[contains(text(), 'Join')]")).await {
+                            Ok(element) => element,
+                            Err(_) => {
+                                println!("Join button not found, retrying in 2 seconds...");
+                                tokio::time::sleep(Duration::from_secs(2)).await;
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        
+        // Try to click the button, retry if not interactable
+        match join_button.click().await {
+            Ok(_) => {
+                println!("Clicked Join button - should now be in the meeting!");
+                break;
+            }
+            Err(e) => {
+                println!("Join button not interactable ({}), retrying in 1 second...", e);
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+    };
     
     println!("Automation complete!");
     
