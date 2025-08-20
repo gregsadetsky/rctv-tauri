@@ -605,7 +605,46 @@ async fn start_hid_controller() -> std::io::Result<()> {
         .spawn()?;
     
     let stdout = discovery_process.stdout.take().expect("Failed to get stdout");
-    let reader = BufReader::new(stdout);
+    let stderr = discovery_process.stderr.take().expect("Failed to get stderr");
+    
+    // Read from both stdout and stderr concurrently
+    let stdout_task = tokio::spawn(async move {
+        let reader = BufReader::new(stdout);
+        let mut lines = Vec::new();
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                println!("STDOUT: {}", line);
+                lines.push(("stdout".to_string(), line));
+            }
+        }
+        lines
+    });
+    
+    let stderr_task = tokio::spawn(async move {
+        let reader = BufReader::new(stderr);
+        let mut lines = Vec::new();
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                println!("STDERR: {}", line);
+                lines.push(("stderr".to_string(), line));
+            }
+        }
+        lines
+    });
+    
+    // Wait a few seconds for output
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    
+    // Kill the process
+    let _ = discovery_process.kill();
+    
+    // Collect all output
+    let stdout_lines = stdout_task.await.unwrap_or_default();
+    let stderr_lines = stderr_task.await.unwrap_or_default();
+    
+    let mut all_lines = Vec::new();
+    all_lines.extend(stdout_lines);
+    all_lines.extend(stderr_lines);
     
     let mut jabra_device_path = None;
     let mut all_output = Vec::new();
