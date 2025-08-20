@@ -214,23 +214,57 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         println!("Use microphone and camera button not found - continuing without it");
     }
     
-    // Step 5: Wait for and click "Join" button with retries (including click retries)
+    // Step 5: Wait for and click "Join" button with retries (check iframes too)
     println!("Looking for Join button...");
     loop {
-        let join_button = match driver.find(By::XPath("//button[contains(text(), 'Join')]")).await {
+        // Try to find join button in main page first
+        let join_button_result = match driver.find(By::XPath("//button[contains(text(), 'Join')]")).await {
+            Ok(element) => Ok(element),
+            Err(_) => match driver.find(By::XPath("//input[@value='Join']")).await {
+                Ok(element) => Ok(element),
+                Err(_) => driver.find(By::XPath("//*[contains(text(), 'Join')]")).await,
+            },
+        };
+        
+        let join_button = match join_button_result {
             Ok(element) => element,
             Err(_) => {
-                match driver.find(By::XPath("//input[@value='Join']")).await {
-                    Ok(element) => element,
-                    Err(_) => {
-                        match driver.find(By::XPath("//*[contains(text(), 'Join')]")).await {
-                            Ok(element) => element,
-                            Err(_) => {
-                                println!("Join button not found, retrying in 2 seconds...");
-                                tokio::time::sleep(Duration::from_secs(2)).await;
-                                continue;
+                // Not found in main page, try iframes
+                let mut found_in_iframe = None;
+                let current_iframes = driver.find_all(By::Tag("iframe")).await.unwrap_or_default();
+                
+                for (i, _iframe) in current_iframes.iter().enumerate() {
+                    match driver.enter_frame(i as u16).await {
+                        Ok(_) => {
+                            let iframe_result = match driver.find(By::XPath("//button[contains(text(), 'Join')]")).await {
+                                Ok(element) => Ok(element),
+                                Err(_) => match driver.find(By::XPath("//input[@value='Join']")).await {
+                                    Ok(element) => Ok(element),
+                                    Err(_) => driver.find(By::XPath("//*[contains(text(), 'Join')]")).await,
+                                },
+                            };
+                            
+                            match iframe_result {
+                                Ok(element) => {
+                                    println!("Found Join button in iframe {}", i);
+                                    found_in_iframe = Some(element);
+                                    break;
+                                }
+                                Err(_) => {
+                                    let _ = driver.enter_default_frame().await;
+                                }
                             }
                         }
+                        Err(_) => {}
+                    }
+                }
+                
+                match found_in_iframe {
+                    Some(element) => element,
+                    None => {
+                        println!("Join button not found anywhere, retrying in 2 seconds...");
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        continue;
                     }
                 }
             }
@@ -244,6 +278,7 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
             }
             Err(e) => {
                 println!("Join button not interactable ({}), retrying in 1 second...", e);
+                let _ = driver.enter_default_frame().await; // Reset frame context
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
