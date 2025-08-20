@@ -32,9 +32,24 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     // Wait for Chromium to start
     tokio::time::sleep(Duration::from_secs(3)).await;
 
-    // Connect directly to Chromium's debugging port (no ChromeDriver needed)
-    println!("Connecting directly to Chromium on port 9222...");
-    let driver = WebDriver::new("http://localhost:9222", DesiredCapabilities::chrome()).await?;
+    // Start ChromeDriver to bridge to existing Chromium
+    println!("Starting ChromeDriver...");
+    let _chromedriver = Command::new("chromedriver")
+        .arg("--port=9515")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to start ChromeDriver");
+
+    // Wait for ChromeDriver to start
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    // Connect to ChromeDriver and tell it to use existing Chromium
+    let mut caps = DesiredCapabilities::chrome();
+    caps.add_experimental_option("debuggerAddress", "localhost:9222")?;
+    
+    println!("Connecting ChromeDriver to existing Chromium...");
+    let driver = WebDriver::new("http://localhost:9515", caps).await?;
     
     // Navigate to example.com
     driver.goto("https://example.com").await?;
