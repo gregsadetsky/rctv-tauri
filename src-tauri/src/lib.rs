@@ -80,14 +80,29 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     // Automate sign-in process
     println!("Starting automated sign-in process...");
     
-    // Step 1: Wait for and click "sign in" link
+    // Step 1: Wait for and click "sign in" link with retries
     println!("Looking for sign in link...");
-    let sign_in_link = match driver.find(By::LinkText("sign in")).await {
-        Ok(element) => element,
-        Err(_) => driver.find(By::XPath("//a[contains(text(), 'sign in')]")).await?,
+    let sign_in_link = loop {
+        match driver.find(By::LinkText("sign in")).await {
+            Ok(element) => break element,
+            Err(_) => {
+                match driver.find(By::XPath("//a[contains(text(), 'sign in')]")).await {
+                    Ok(element) => break element,
+                    Err(_) => {
+                        match driver.find(By::XPath("//a[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'sign in')]")).await {
+                            Ok(element) => break element,
+                            Err(_) => {
+                                println!("Sign in link not found, retrying in 2 seconds...");
+                                tokio::time::sleep(Duration::from_secs(2)).await;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     };
     sign_in_link.click().await?;
-    println!("Clicked Sign In link");
+    println!("Clicked sign in link");
     
     // Step 2: Wait for and click Google sign-in button
     println!("Looking for Google sign-in button...");
