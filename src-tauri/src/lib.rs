@@ -290,8 +290,22 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                 // Try JavaScript click as fallback
                 match driver.execute("arguments[0].click();", vec![join_button.to_json()?]).await {
                     Ok(_) => {
-                        println!("JavaScript click succeeded!");
-                        break;
+                        println!("JavaScript click executed, waiting to see if it worked...");
+                        
+                        // Wait a moment and check if we're now in a meeting (URL change, new elements, etc.)
+                        tokio::time::sleep(Duration::from_secs(3)).await;
+                        let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
+                        println!("Current URL after click attempt: {}", current_url);
+                        
+                        // Check if we're now in the meeting (URL contains meeting indicators)
+                        if current_url.contains("meeting") || current_url.contains("launch") || current_url.contains("join") {
+                            println!("Successfully joined meeting!");
+                            break;
+                        } else {
+                            println!("JavaScript click didn't seem to work (URL unchanged), retrying...");
+                            let _ = driver.enter_default_frame().await;
+                            tokio::time::sleep(Duration::from_secs(2)).await;
+                        }
                     }
                     Err(js_e) => {
                         println!("JavaScript click also failed ({}), retrying in 2 seconds...", js_e);
