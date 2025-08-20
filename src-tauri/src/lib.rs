@@ -217,7 +217,7 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     // Step 5: Wait for and click "Join" button with retries (check iframes too)
     println!("Looking for Join button...");
     let mut join_attempts = 0;
-    loop {
+    'outer: loop {
         join_attempts += 1;
         println!("Join button attempt #{}", join_attempts);
         // Try to find join button in main page first
@@ -370,12 +370,14 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
             }
         };
         
-        // Debug the button state before clicking
+        // Debug the button state before clicking  
         let is_enabled = join_button.is_enabled().await.unwrap_or(false);
         let is_displayed = join_button.is_displayed().await.unwrap_or(false);
+        let is_selected = join_button.is_selected().await.unwrap_or(false);
         let tag_name = join_button.tag_name().await.unwrap_or_default();
         
-        println!("Join button state - enabled: {}, displayed: {}, tag: {}", is_enabled, is_displayed, tag_name);
+        println!("Join button state (attempt {}) - enabled: {}, displayed: {}, selected: {}, tag: {}", 
+                join_attempts, is_enabled, is_displayed, is_selected, tag_name);
         
         // Try to click the button multiple times before falling back to JavaScript
         let mut click_succeeded = false;
@@ -389,6 +391,36 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                 }
                 Err(e) => {
                     println!("Standard click attempt {} failed: {}", click_attempt, e);
+                    
+                    // Try pressing Enter as alternative
+                    println!("Trying Enter key press instead (main loop)...");
+                    match join_button.send_keys("\n").await {
+                        Ok(_) => {
+                            println!("Enter key press succeeded in main loop!");
+                            
+                            // Wait and check if we're in the meeting
+                            tokio::time::sleep(Duration::from_secs(3)).await;
+                            let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
+                            println!("Current URL after Enter press (main): {}", current_url);
+                            
+                            let in_meeting = current_url.contains("zoomgov.com") || 
+                                            current_url.contains("meeting") ||
+                                            current_url.contains("launch") ||
+                                            current_url.contains("/j/") ||
+                                            !current_url.contains("/wc/");
+                            
+                            if in_meeting {
+                                println!("Successfully joined meeting with Enter key in main loop!");
+                                break 'outer;
+                            } else {
+                                println!("Enter key in main loop didn't work, continuing...");
+                            }
+                        }
+                        Err(enter_e) => {
+                            println!("Enter key press in main loop also failed: {}", enter_e);
+                        }
+                    }
+                    
                     if click_attempt < 3 {
                         tokio::time::sleep(Duration::from_secs(1)).await;
                     }
