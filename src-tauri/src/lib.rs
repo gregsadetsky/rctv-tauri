@@ -7,6 +7,20 @@ use thirtyfour::prelude::*;
 
 
 async fn start_chromium_controller() -> WebDriverResult<()> {
+    // Kill any existing Chrome/Chromium processes
+    println!("Cleaning up existing Chrome processes...");
+    let _ = Command::new("pkill")
+        .arg("-f")
+        .arg("chromium")
+        .output();
+    let _ = Command::new("pkill")
+        .arg("-f")
+        .arg("chrome")
+        .output();
+    
+    // Wait a moment for processes to die
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
     // Start ChromeDriver process
     println!("Starting ChromeDriver...");
     let _chromedriver = Command::new("chromedriver")
