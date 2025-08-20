@@ -23,10 +23,10 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         .arg("--remote-debugging-port=9222")
         .arg("--user-data-dir=/home/rctv/.rctv-chrome-profile")
         .arg("--autoplay-policy=no-user-gesture-required")
-        .arg("--enable-logging")
-        .arg("--v=1")
-        .stdout(Stdio::inherit()) // Show Chromium output
-        .stderr(Stdio::inherit())
+        .arg("--disable-logging")
+        .arg("--log-level=3")
+        .stdout(Stdio::null()) // Hide Chromium output
+        .stderr(Stdio::null())
         .spawn()
         .expect("Failed to start Chromium");
 
@@ -55,10 +55,10 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     println!("Starting ChromeDriver...");
     let _chromedriver = Command::new("chromedriver")
         .arg("--port=9515")
-        .arg("--verbose")
         .arg("--whitelisted-ips=")
-        .stdout(Stdio::inherit()) // Show ChromeDriver output
-        .stderr(Stdio::inherit())
+        .arg("--silent")
+        .stdout(Stdio::null()) // Hide ChromeDriver output
+        .stderr(Stdio::null())
         .spawn()
         .expect("Failed to start ChromeDriver");
 
