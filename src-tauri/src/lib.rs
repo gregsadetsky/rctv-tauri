@@ -216,7 +216,10 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     
     // Step 5: Wait for and click "Join" button with retries (check iframes too)
     println!("Looking for Join button...");
+    let mut join_attempts = 0;
     loop {
+        join_attempts += 1;
+        println!("Join button attempt #{}", join_attempts);
         // Try to find join button in main page first
         let join_button_result = match driver.find(By::XPath("//button[contains(text(), 'Join')]")).await {
             Ok(element) => Ok(element),
@@ -302,13 +305,23 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                             println!("Successfully joined meeting!");
                             break;
                         } else {
-                            println!("JavaScript click didn't seem to work (URL unchanged), retrying...");
+                            println!("JavaScript click didn't seem to work (URL unchanged)");
+                            if join_attempts >= 10 {
+                                println!("Too many failed attempts, giving up on Join button");
+                                break;
+                            }
+                            println!("Retrying... (attempt {} of 10)", join_attempts + 1);
                             let _ = driver.enter_default_frame().await;
                             tokio::time::sleep(Duration::from_secs(2)).await;
                         }
                     }
                     Err(js_e) => {
-                        println!("JavaScript click also failed ({}), retrying in 2 seconds...", js_e);
+                        println!("JavaScript click also failed ({})", js_e);
+                        if join_attempts >= 10 {
+                            println!("Too many failed attempts, giving up on Join button");
+                            break;
+                        }
+                        println!("Retrying in 2 seconds... (attempt {} of 10)", join_attempts + 1);
                         let _ = driver.enter_default_frame().await; // Reset frame context
                         tokio::time::sleep(Duration::from_secs(2)).await;
                     }
