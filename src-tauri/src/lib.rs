@@ -35,6 +35,8 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
 
     // Create Chrome capabilities - ChromeDriver will start Chrome automatically
     let mut caps = DesiredCapabilities::chrome();
+    // Tell ChromeDriver where to find Chromium on Raspberry Pi
+    caps.set_binary("/usr/bin/chromium-browser")?;
     // Enable real camera and microphone access
     caps.add_arg("--use-fake-ui-for-media-stream")?; // Auto-grant media permissions without user prompt
     caps.add_arg("--autoplay-policy=no-user-gesture-required")?; // Allow autoplay for media
