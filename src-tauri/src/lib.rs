@@ -16,6 +16,20 @@ enum AutomationState {
     Stopping,           // Currently stopping Chrome/ChromeDriver
 }
 
+async fn check_if_in_meeting(driver: &WebDriver) -> bool {
+    // Check for Leave button to confirm we're actually in the meeting
+    match driver.find(By::XPath("//*[contains(text(), 'Leave')]")).await {
+        Ok(_) => {
+            println!("Leave button found - confirmed in meeting!");
+            true
+        }
+        Err(_) => {
+            println!("Leave button not found - not in meeting yet");
+            false
+        }
+    }
+}
+
 async fn kill_chrome_processes() {
     println!("Killing Chrome/Chromium and ChromeDriver processes...");
     
@@ -327,16 +341,8 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                                                 
                                                 // Wait and check if we're in the meeting
                                                 tokio::time::sleep(Duration::from_secs(3)).await;
-                                                let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
-                                                println!("Current URL after iframe click: {}", current_url);
                                                 
-                                                let in_meeting = current_url.contains("zoomgov.com") || 
-                                                                current_url.contains("meeting") ||
-                                                                current_url.contains("launch") ||
-                                                                current_url.contains("/j/") ||
-                                                                !current_url.contains("/wc/");
-                                                
-                                                if in_meeting {
+                                                if check_if_in_meeting(&driver).await {
                                                     println!("Successfully joined meeting from iframe!");
                                                     return Ok(());
                                                 } else {
@@ -354,16 +360,8 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                                                         
                                                         // Wait and check if we're in the meeting
                                                         tokio::time::sleep(Duration::from_secs(3)).await;
-                                                        let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
-                                                        println!("Current URL after Enter press: {}", current_url);
                                                         
-                                                        let in_meeting = current_url.contains("zoomgov.com") || 
-                                                                        current_url.contains("meeting") ||
-                                                                        current_url.contains("launch") ||
-                                                                        current_url.contains("/j/") ||
-                                                                        !current_url.contains("/wc/");
-                                                        
-                                                        if in_meeting {
+                                                        if check_if_in_meeting(&driver).await {
                                                             println!("Successfully joined meeting with Enter key!");
                                                             return Ok(());
                                                         } else {
@@ -388,15 +386,8 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                                         Ok(_) => {
                                             println!("JavaScript click executed in iframe");
                                             tokio::time::sleep(Duration::from_secs(3)).await;
-                                            let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
                                             
-                                            let in_meeting = current_url.contains("zoomgov.com") || 
-                                                            current_url.contains("meeting") ||
-                                                            current_url.contains("launch") ||
-                                                            current_url.contains("/j/") ||
-                                                            !current_url.contains("/wc/");
-                                            
-                                            if in_meeting {
+                                            if check_if_in_meeting(&driver).await {
                                                 println!("Successfully joined meeting with JavaScript click in iframe!");
                                                 return Ok(());
                                             }
@@ -485,16 +476,8 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                             
                             // Wait and check if we're in the meeting
                             tokio::time::sleep(Duration::from_secs(3)).await;
-                            let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
-                            println!("Current URL after Enter press (main): {}", current_url);
                             
-                            let in_meeting = current_url.contains("zoomgov.com") || 
-                                            current_url.contains("meeting") ||
-                                            current_url.contains("launch") ||
-                                            current_url.contains("/j/") ||
-                                            !current_url.contains("/wc/");
-                            
-                            if in_meeting {
+                            if check_if_in_meeting(&driver).await {
                                 println!("Successfully joined meeting with Enter key in main loop!");
                                 break 'outer;
                             } else {
@@ -516,16 +499,8 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         if click_succeeded {
             // Wait and check if we're in the meeting
             tokio::time::sleep(Duration::from_secs(3)).await;
-            let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
-            println!("Current URL after standard click: {}", current_url);
             
-            let in_meeting = current_url.contains("zoomgov.com") || 
-                            current_url.contains("meeting") ||
-                            current_url.contains("launch") ||
-                            current_url.contains("/j/") ||
-                            !current_url.contains("/wc/");
-            
-            if in_meeting {
+            if check_if_in_meeting(&driver).await {
                 println!("Successfully joined meeting with standard click!");
                 break;
             } else {
@@ -539,33 +514,14 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                 Ok(_) => {
                     println!("JavaScript click executed, waiting to see if it worked...");
                     
-                    // Wait a moment and check if we're now in a meeting (URL change, new elements, etc.)
+                    // Wait a moment and check if we're now in a meeting
                     tokio::time::sleep(Duration::from_secs(3)).await;
-                    let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
-                    println!("Current URL after click attempt: {}", current_url);
                     
-                    // Check if we're now in the meeting (look for actual meeting indicators)
-                    println!("Checking if we're actually in a meeting...");
-                    
-                    // Better indicators that we're in a meeting
-                    let in_meeting = current_url.contains("zoomgov.com") || 
-                                    current_url.contains("meeting") ||
-                                    current_url.contains("launch") ||
-                                    current_url.contains("/j/") ||
-                                    !current_url.contains("/wc/"); // We've left the web client page
-                    
-                    println!("Meeting indicators - zoomgov: {}, meeting: {}, launch: {}, /j/: {}, left wc: {}", 
-                            current_url.contains("zoomgov.com"),
-                            current_url.contains("meeting"),
-                            current_url.contains("launch"), 
-                            current_url.contains("/j/"),
-                            !current_url.contains("/wc/"));
-                    
-                    if in_meeting {
+                    if check_if_in_meeting(&driver).await {
                         println!("Successfully joined meeting!");
                         break;
                     } else {
-                        println!("JavaScript click didn't seem to work (URL unchanged)");
+                        println!("JavaScript click didn't seem to work");
                         if join_attempts >= 10 {
                             println!("Too many failed attempts, giving up on Join button");
                             break;
