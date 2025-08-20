@@ -77,34 +77,24 @@ pub fn run() {
                 }
             };
             
-            std::thread::spawn(move || {
-                let rt = tokio::runtime::Runtime::new().unwrap();
-                rt.block_on(async {
-                    loop {
-                        match fetch_apps(&token).await {
-                            Ok(apps) => {
-                                if !apps.is_empty() {
-                                    for app in &apps {
-                                        if let Some(window) = app_handle.get_webview_window("main") {
-                                            if let Ok(parsed_url) = Url::parse(&app.url) {
-                                                let _ = window.navigate(parsed_url);
-                                            }
-                                        }
-                                        tokio::time::sleep(Duration::from_secs(app.on_screen_duration_seconds)).await;
-                                    }
-                                } else {
-                                    // If no apps, wait a bit before trying again
-                                    tokio::time::sleep(Duration::from_secs(60)).await;
-                                }
-                            }
-                            Err(e) => {
-                                eprintln!("Failed to fetch apps: {}", e);
-                                tokio::time::sleep(Duration::from_secs(30)).await;
-                            }
-                        }
-                    }
-                });
-            });
+            // Navigate to specific Zoom URL
+            if let Some(window) = app.get_webview_window("main") {
+                // Enable camera and microphone permissions
+                let _ = window.eval(r#"
+                    navigator.mediaDevices.getUserMedia({video: true, audio: true})
+                        .then(function(stream) {
+                            console.log('Media permissions granted');
+                        })
+                        .catch(function(err) {
+                            console.log('Media permissions denied:', err);
+                        });
+                "#);
+                
+                let zoom_url = "https://app.zoom.us/wc/2125949362/join?fromPWA=1&pwd=OEJ3Nkw4djlmSlBBVWl2aVdXTk93Zz09";
+                if let Ok(parsed_url) = Url::parse(zoom_url) {
+                    let _ = window.navigate(parsed_url);
+                }
+            }
             
             Ok(())
         })

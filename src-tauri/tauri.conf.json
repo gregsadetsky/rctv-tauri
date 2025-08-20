@@ -26,6 +26,9 @@
     ],
     "security": {
       "csp": null
+    },
+    "webview": {
+      "webSecurity": false
     }
   },
   "plugins": {
