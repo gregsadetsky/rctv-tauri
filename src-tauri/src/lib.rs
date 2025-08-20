@@ -1,6 +1,6 @@
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tauri::{Manager, Emitter};
+use std::time::Duration;
+use tauri::Manager;
 use tauri_plugin_cli::CliExt;
 use url::Url;
 use serde::Deserialize;
@@ -50,8 +50,14 @@ pub fn run() {
                             }
                         }
                         None => {
-                            eprintln!("Error: --token argument is required");
-                            std::process::exit(1);
+                            // Try reading from /root/.rctvtoken file as fallback
+                            match std::fs::read_to_string("/root/.rctvtoken") {
+                                Ok(token_from_file) => token_from_file.trim().to_string(),
+                                Err(_) => {
+                                    eprintln!("Error: --token argument is required or /root/.rctvtoken file must exist");
+                                    std::process::exit(1);
+                                }
+                            }
                         }
                     }
                 }

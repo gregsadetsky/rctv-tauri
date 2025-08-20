@@ -2,8 +2,24 @@
 
 ## how to dev/test
 
+### to install
+
+```
+(roughly)
+# install rust
+# install tauri -- including apt-get...
+cargo install create-tauri-app --locked
+npm install
+npm run tauri build
+```
+
+then...
+
 ```bash
-# In development:
+# to dev:
+npm run tauri dev
+
+# to build:
 npm run tauri build
 ./src-tauri/target/release/rctv-tauri --token YOUR_TOKEN_HERE
 
