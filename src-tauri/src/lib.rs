@@ -1,10 +1,44 @@
 use std::sync::Arc;
 use std::time::Duration;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::io::{BufRead, BufReader};
 use tauri::Manager;
 use tauri_plugin_cli::CliExt;
 use thirtyfour::prelude::*;
 
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum AutomationState {
+    WaitingForStart,    // Waiting for first signal to start zoom automation
+    ZoomRunning,        // Zoom automation in progress
+    ZoomComplete,       // Zoom automation complete, waiting for stop signal
+    Stopping,           // Currently stopping Chrome/ChromeDriver
+}
+
+async fn kill_chrome_processes() {
+    println!("Killing Chrome/Chromium and ChromeDriver processes...");
+    
+    // Kill ChromeDriver
+    let _ = Command::new("pkill")
+        .arg("-f")
+        .arg("chromedriver")
+        .output();
+    
+    // Kill Chrome/Chromium
+    let _ = Command::new("pkill")
+        .arg("-f")
+        .arg("chromium")
+        .output();
+    let _ = Command::new("pkill")
+        .arg("-f")
+        .arg("chrome")
+        .output();
+    
+    // Wait for processes to die
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    println!("Chrome processes killed");
+}
 
 async fn start_chromium_controller() -> WebDriverResult<()> {
     // Kill any existing Chrome/Chromium processes
@@ -556,11 +590,89 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     };
     
     println!("Automation complete!");
+    Ok(())
+}
+
+async fn start_hid_controller() -> std::io::Result<()> {
+    let state = Arc::new(std::sync::Mutex::new(AutomationState::WaitingForStart));
     
-    // Keep the browser open
-    loop {
-        tokio::time::sleep(Duration::from_secs(60)).await;
+    println!("Starting hid-recorder in background...");
+    
+    // Start hid-recorder
+    let mut hid_process = Command::new("hid-recorder")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    
+    let stdout = hid_process.stdout.take().expect("Failed to get stdout");
+    let reader = BufReader::new(stdout);
+    
+    println!("HID recorder started, monitoring for signal: E: 000027.018024 3 03 01 00");
+    
+    for line in reader.lines() {
+        let line = line?;
+        
+        // Check for the specific signal
+        if line.contains("E: 000027.018024 3 03 01 00") {
+            let current_state = {
+                let state_guard = state.lock().unwrap();
+                *state_guard
+            };
+            
+            println!("Signal detected! Current state: {:?}", current_state);
+            
+            match current_state {
+                AutomationState::WaitingForStart => {
+                    println!("Starting Zoom automation...");
+                    {
+                        let mut state_guard = state.lock().unwrap();
+                        *state_guard = AutomationState::ZoomRunning;
+                    }
+                    
+                    // Start Zoom automation in background task
+                    let state_clone = Arc::clone(&state);
+                    tokio::spawn(async move {
+                        match start_chromium_controller().await {
+                            Ok(_) => {
+                                println!("Zoom automation completed successfully");
+                                let mut state_guard = state_clone.lock().unwrap();
+                                *state_guard = AutomationState::ZoomComplete;
+                            }
+                            Err(e) => {
+                                println!("Zoom automation failed: {}", e);
+                                let mut state_guard = state_clone.lock().unwrap();
+                                *state_guard = AutomationState::WaitingForStart;
+                            }
+                        }
+                    });
+                }
+                AutomationState::ZoomRunning => {
+                    println!("Zoom automation already running, ignoring signal");
+                }
+                AutomationState::ZoomComplete => {
+                    println!("Stopping Zoom and Chrome processes...");
+                    {
+                        let mut state_guard = state.lock().unwrap();
+                        *state_guard = AutomationState::Stopping;
+                    }
+                    
+                    // Kill Chrome processes in background task
+                    let state_clone = Arc::clone(&state);
+                    tokio::spawn(async move {
+                        kill_chrome_processes().await;
+                        println!("Chrome processes stopped, ready for next signal");
+                        let mut state_guard = state_clone.lock().unwrap();
+                        *state_guard = AutomationState::WaitingForStart;
+                    });
+                }
+                AutomationState::Stopping => {
+                    println!("Currently stopping processes, ignoring signal");
+                }
+            }
+        }
     }
+    
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -617,13 +729,13 @@ pub fn run() {
                 }
             };
             
-            // Start Chromium controller in background thread
+            // Start HID controller in background thread
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
-                    match start_chromium_controller().await {
-                        Ok(_) => println!("Chromium controller started successfully"),
-                        Err(e) => eprintln!("Failed to start Chromium controller: {}", e),
+                    match start_hid_controller().await {
+                        Ok(_) => println!("HID controller started successfully"),
+                        Err(e) => eprintln!("Failed to start HID controller: {}", e),
                     }
                 });
             });
