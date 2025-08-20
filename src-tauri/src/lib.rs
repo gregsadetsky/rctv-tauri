@@ -270,16 +270,35 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
             }
         };
         
-        // Try to click the button, retry if not interactable
-        match join_button.click().await {
+        // Debug the button state before clicking
+        let is_enabled = join_button.is_enabled().await.unwrap_or(false);
+        let is_displayed = join_button.is_displayed().await.unwrap_or(false);
+        let tag_name = join_button.tag_name().await.unwrap_or_default();
+        
+        println!("Join button state - enabled: {}, displayed: {}, tag: {}", is_enabled, is_displayed, tag_name);
+        
+        // Try to click the button, with fallback methods
+        let click_result = join_button.click().await;
+        match click_result {
             Ok(_) => {
                 println!("Clicked Join button - should now be in the meeting!");
                 break;
             }
             Err(e) => {
-                println!("Join button not interactable ({}), retrying in 1 second...", e);
-                let _ = driver.enter_default_frame().await; // Reset frame context
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                println!("Standard click failed ({}), trying JavaScript click...", e);
+                
+                // Try JavaScript click as fallback
+                match driver.execute("arguments[0].click();", vec![join_button.to_json()?]).await {
+                    Ok(_) => {
+                        println!("JavaScript click succeeded!");
+                        break;
+                    }
+                    Err(js_e) => {
+                        println!("JavaScript click also failed ({}), retrying in 2 seconds...", js_e);
+                        let _ = driver.enter_default_frame().await; // Reset frame context
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                    }
+                }
             }
         }
     };
