@@ -139,6 +139,9 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     sign_in_link.click().await?;
     println!("Clicked sign in link");
     
+    // Switch back to default frame after clicking sign in
+    let _ = driver.enter_default_frame().await;
+    
     // Step 2: Wait for and click Google sign-in link with retries
     println!("Looking for Google sign-in link...");
     let google_button = loop {
