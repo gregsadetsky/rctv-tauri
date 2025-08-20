@@ -24,7 +24,6 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         .arg("--user-data-dir=/home/rctv/.rctv-chrome-profile")
         .arg("--autoplay-policy=no-user-gesture-required")
         .arg("--use-fake-ui-for-media-stream")
-        .arg("--no-sandbox")
         .arg("--enable-logging")
         .arg("--v=1")
         .stdout(Stdio::inherit()) // Show Chromium output
@@ -32,22 +31,40 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         .spawn()
         .expect("Failed to start Chromium");
 
-    // Wait for Chromium to start
-    tokio::time::sleep(Duration::from_secs(3)).await;
+    // Wait for Chromium to start and check if debugging port is available
+    println!("Waiting for Chromium debugging port...");
+    for i in 0..10 {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        
+        // Test if port 9222 is accepting connections
+        match reqwest::get("http://localhost:9222/json").await {
+            Ok(response) => {
+                println!("Chromium debugging port is ready! Status: {}", response.status());
+                break;
+            }
+            Err(e) => {
+                println!("Attempt {}: Chromium debugging port not ready yet: {}", i+1, e);
+                if i == 9 {
+                    eprintln!("Failed to connect to Chromium debugging port after 10 seconds");
+                    return Err(WebDriverError::FatalError("Chromium debugging port not available".to_string()));
+                }
+            }
+        }
+    }
 
     // Start ChromeDriver to bridge to existing Chromium
     println!("Starting ChromeDriver...");
     let _chromedriver = Command::new("chromedriver")
         .arg("--port=9515")
         .arg("--verbose")
-        .arg("--log-path=/tmp/chromedriver.log")
+        .arg("--whitelisted-ips=")
         .stdout(Stdio::inherit()) // Show ChromeDriver output
         .stderr(Stdio::inherit())
         .spawn()
         .expect("Failed to start ChromeDriver");
 
     // Wait for ChromeDriver to start
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    tokio::time::sleep(Duration::from_secs(3)).await;
 
     // Connect to ChromeDriver and tell it to use existing Chromium
     let mut caps = DesiredCapabilities::chrome();
