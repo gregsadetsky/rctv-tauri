@@ -1,19 +1,39 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::io::{BufRead, BufReader};
-use tauri::Manager;
+use tauri::{Manager, Emitter};
 use tauri_plugin_cli::CliExt;
 use thirtyfour::prelude::*;
+use url::Url;
+use serde::Deserialize;
 
+
+#[derive(Deserialize)]
+struct App {
+    url: String,
+    on_screen_duration_seconds: u64,
+}
+
+#[derive(Deserialize)]
+struct ApiResponse {
+    apps: Vec<App>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum AutomationState {
-    WaitingForStart,    // Waiting for first signal to start zoom automation
+    KioskMode,          // Running normal kiosk URL cycling
     ZoomRunning,        // Zoom automation in progress
     ZoomComplete,       // Zoom automation complete, waiting for stop signal
     Stopping,           // Currently stopping Chrome/ChromeDriver
+}
+
+async fn fetch_apps(token: &str) -> Result<Vec<App>, Box<dyn std::error::Error + Send + Sync>> {
+    let url = format!("https://rctv.recurse.com/get_all_apps_for_tauri?tv_login_token={}", token);
+    let response = reqwest::get(&url).await?;
+    let api_response: ApiResponse = response.json().await?;
+    Ok(api_response.apps)
 }
 
 async fn check_if_in_meeting(driver: &WebDriver) -> bool {
@@ -28,6 +48,92 @@ async fn check_if_in_meeting(driver: &WebDriver) -> bool {
             false
         }
     }
+}
+
+async fn start_kiosk_mode(token: String, app_handle: Arc<tauri::AppHandle>, state: Arc<std::sync::Mutex<AutomationState>>) -> std::io::Result<()> {
+    println!("Starting kiosk mode...");
+    
+    // Show the window
+    if let Some(window) = app_handle.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_cursor_visible(false);
+    }
+    
+    loop {
+        // Check if we should still be in kiosk mode
+        {
+            let current_state = state.lock().unwrap();
+            if *current_state != AutomationState::KioskMode {
+                println!("Exiting kiosk mode, current state: {:?}", *current_state);
+                break;
+            }
+        }
+        
+        println!("Fetching apps from API...");
+        match fetch_apps(&token).await {
+            Ok(apps) => {
+                if !apps.is_empty() {
+                    println!("Found {} apps, cycling through them", apps.len());
+                    
+                    for app in &apps {
+                        // Check again if we should still be in kiosk mode
+                        {
+                            let current_state = state.lock().unwrap();
+                            if *current_state != AutomationState::KioskMode {
+                                println!("Exiting kiosk mode during URL cycling, current state: {:?}", *current_state);
+                                return Ok(());
+                            }
+                        }
+                        
+                        println!("Loading URL: {} for {} seconds", app.url, app.on_screen_duration_seconds);
+                        
+                        // Parse and navigate to URL
+                        match Url::parse(&app.url) {
+                            Ok(parsed_url) => {
+                                if let Some(window) = app_handle.get_webview_window("main") {
+                                    let navigate_result = window.navigate(parsed_url);
+                                    if let Err(e) = navigate_result {
+                                        println!("Failed to navigate: {}", e);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                println!("Failed to parse URL {}: {}", app.url, e);
+                            }
+                        }
+                        
+                        // Wait for the specified duration, checking periodically if we should exit
+                        let wait_time = app.on_screen_duration_seconds;
+                        let check_interval = std::cmp::min(wait_time, 5); // Check every 5 seconds or less
+                        let mut elapsed = 0;
+                        
+                        while elapsed < wait_time {
+                            {
+                                let current_state = state.lock().unwrap();
+                                if *current_state != AutomationState::KioskMode {
+                                    println!("Exiting kiosk mode during wait, current state: {:?}", *current_state);
+                                    return Ok(());
+                                }
+                            }
+                            
+                            let sleep_time = std::cmp::min(check_interval, wait_time - elapsed);
+                            tokio::time::sleep(Duration::from_secs(sleep_time)).await;
+                            elapsed += sleep_time;
+                        }
+                    }
+                } else {
+                    println!("No apps found, waiting 10 seconds before retry...");
+                    tokio::time::sleep(Duration::from_secs(10)).await;
+                }
+            }
+            Err(e) => {
+                println!("Failed to fetch apps: {}, waiting 10 seconds before retry...", e);
+                tokio::time::sleep(Duration::from_secs(10)).await;
+            }
+        }
+    }
+    
+    Ok(())
 }
 
 async fn kill_chrome_processes() {
@@ -549,8 +655,7 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     Ok(())
 }
 
-async fn start_hid_controller() -> std::io::Result<()> {
-    let state = Arc::new(std::sync::Mutex::new(AutomationState::WaitingForStart));
+async fn start_hid_controller(token: String, app_handle: Arc<tauri::AppHandle>, state: Arc<std::sync::Mutex<AutomationState>>) -> std::io::Result<()> {
     
     println!("Starting hid-recorder to discover devices...");
     
@@ -662,11 +767,16 @@ async fn start_hid_controller() -> std::io::Result<()> {
             println!("Signal detected! Current state: {:?}", current_state);
             
             match current_state {
-                AutomationState::WaitingForStart => {
-                    println!("Starting Zoom automation...");
+                AutomationState::KioskMode => {
+                    println!("Switching from Kiosk to Zoom mode...");
                     {
                         let mut state_guard = state.lock().unwrap();
                         *state_guard = AutomationState::ZoomRunning;
+                    }
+                    
+                    // Hide the Tauri window
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.hide();
                     }
                     
                     // Start Zoom automation in background task
@@ -681,7 +791,7 @@ async fn start_hid_controller() -> std::io::Result<()> {
                             Err(e) => {
                                 println!("Zoom automation failed: {}", e);
                                 let mut state_guard = state_clone.lock().unwrap();
-                                *state_guard = AutomationState::WaitingForStart;
+                                *state_guard = AutomationState::KioskMode;
                             }
                         }
                     });
@@ -690,19 +800,32 @@ async fn start_hid_controller() -> std::io::Result<()> {
                     println!("Zoom automation already running, ignoring signal");
                 }
                 AutomationState::ZoomComplete => {
-                    println!("Stopping Zoom and Chrome processes...");
+                    println!("Stopping Zoom and returning to Kiosk mode...");
                     {
                         let mut state_guard = state.lock().unwrap();
                         *state_guard = AutomationState::Stopping;
                     }
                     
-                    // Kill Chrome processes in background task
+                    // Kill Chrome processes and restart kiosk in background task
                     let state_clone = Arc::clone(&state);
+                    let app_handle_clone = Arc::clone(&app_handle);
+                    let token_clone = token.clone();
                     tokio::spawn(async move {
                         kill_chrome_processes().await;
-                        println!("Chrome processes stopped, ready for next signal");
+                        println!("Chrome processes stopped, returning to kiosk mode");
                         let mut state_guard = state_clone.lock().unwrap();
-                        *state_guard = AutomationState::WaitingForStart;
+                        *state_guard = AutomationState::KioskMode;
+                        
+                        // Show the Tauri window and restart kiosk mode
+                        if let Some(window) = app_handle_clone.get_webview_window("main") {
+                            let _ = window.show();
+                        }
+                        
+                        // Start kiosk mode in background (this will loop indefinitely)
+                        let state_for_kiosk = Arc::clone(&state_clone);
+                        tokio::spawn(async move {
+                            let _ = start_kiosk_mode(token_clone, app_handle_clone, state_for_kiosk).await;
+                        });
                     });
                 }
                 AutomationState::Stopping => {
@@ -722,7 +845,8 @@ pub fn run() {
         .plugin(tauri_plugin_cli::init())
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_cursor_visible(true);
+                let _ = window.set_cursor_visible(false);
+                let _ = window.show(); // Make sure window is visible for kiosk mode
             }
 
             let _app_handle = Arc::new(app.handle().clone());
@@ -769,11 +893,31 @@ pub fn run() {
                 }
             };
             
-            // Start HID controller in background thread
+            // Create shared state for both kiosk and HID controller
+            let shared_state = Arc::new(std::sync::Mutex::new(AutomationState::KioskMode));
+            
+            // Start kiosk mode initially
+            let kiosk_app_handle = Arc::clone(&_app_handle);
+            let kiosk_token = _token.clone();
+            let kiosk_state = Arc::clone(&shared_state);
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
-                    match start_hid_controller().await {
+                    match start_kiosk_mode(kiosk_token, kiosk_app_handle, kiosk_state).await {
+                        Ok(_) => println!("Kiosk mode started successfully"),
+                        Err(e) => eprintln!("Failed to start kiosk mode: {}", e),
+                    }
+                });
+            });
+            
+            // Start HID controller in background thread
+            let hid_app_handle = Arc::clone(&_app_handle);
+            let hid_token = _token.clone();
+            let hid_state = Arc::clone(&shared_state);
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    match start_hid_controller(hid_token, hid_app_handle, hid_state).await {
                         Ok(_) => println!("HID controller started successfully"),
                         Err(e) => eprintln!("Failed to start HID controller: {}", e),
                     }
