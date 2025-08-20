@@ -80,11 +80,11 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     // Automate sign-in process
     println!("Starting automated sign-in process...");
     
-    // Step 1: Wait for and click "Sign In" link
-    println!("Looking for Sign In link...");
-    let sign_in_link = match driver.find(By::LinkText("Sign In")).await {
+    // Step 1: Wait for and click "sign in" link
+    println!("Looking for sign in link...");
+    let sign_in_link = match driver.find(By::LinkText("sign in")).await {
         Ok(element) => element,
-        Err(_) => driver.find(By::XPath("//a[contains(text(), 'Sign In')]")).await?,
+        Err(_) => driver.find(By::XPath("//a[contains(text(), 'sign in')]")).await?,
     };
     sign_in_link.click().await?;
     println!("Clicked Sign In link");
