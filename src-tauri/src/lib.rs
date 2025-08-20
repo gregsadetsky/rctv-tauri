@@ -142,10 +142,7 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     // Step 2: Wait for and click Google sign-in button
     println!("Looking for Google sign-in button...");
     tokio::time::sleep(Duration::from_secs(3)).await;
-    let google_button = match driver.find(By::XPath("//button[@aria-label='Sign in with Google']")).await {
-        Ok(element) => element,
-        Err(_) => driver.find(By::XPath("//*[contains(@aria-label, 'Google')]")).await?,
-    };
+    let google_button = driver.find(By::XPath("//*[@aria-label='Sign in with Google']")).await?;
     google_button.click().await?;
     println!("Clicked Google sign-in button");
     
