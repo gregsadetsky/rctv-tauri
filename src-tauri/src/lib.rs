@@ -30,7 +30,7 @@ pub fn run() {
         .plugin(tauri_plugin_cli::init())
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_cursor_visible(false);
+                let _ = window.set_cursor_visible(true);
             }
 
             let app_handle = Arc::new(app.handle().clone());
