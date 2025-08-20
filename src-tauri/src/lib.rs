@@ -24,7 +24,7 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     // Enable real camera and microphone access
     caps.add_arg("--use-fake-ui-for-media-stream")?; // Auto-grant media permissions without user prompt
     caps.add_arg("--autoplay-policy=no-user-gesture-required")?; // Allow autoplay for media
-    caps.add_arg("--user-data-dir=/tmp/rctv-chrome-profile")?; // Persistent profile directory
+    caps.add_arg("--user-data-dir=/home/rctv/.rctv-chrome-profile")?; // Persistent profile directory
     
     // Connect to ChromeDriver (which will automatically start Chrome)
     println!("Connecting to ChromeDriver and starting Chrome...");
