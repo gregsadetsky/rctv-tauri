@@ -169,24 +169,50 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     recurse_account.click().await?;
     println!("Selected Recurse RCTV account");
     
-    // Step 4: Wait for and click "Use microphone and camera" button with retries
-    println!("Looking for Use microphone and camera button...");
-    let mic_camera_button = loop {
+    // Step 4: Look for optional "Use microphone and camera" button (don't block if not found)
+    println!("Looking for optional Use microphone and camera button...");
+    let mut found_mic_camera = false;
+    for attempt in 1..=3 {
         match driver.find(By::XPath("//button[contains(text(), 'Use microphone and camera')]")).await {
-            Ok(element) => break element,
+            Ok(element) => {
+                match element.click().await {
+                    Ok(_) => {
+                        println!("Clicked Use microphone and camera button");
+                        found_mic_camera = true;
+                        break;
+                    }
+                    Err(e) => {
+                        println!("Could not click microphone button: {}", e);
+                    }
+                }
+            }
             Err(_) => {
                 match driver.find(By::XPath("//*[contains(text(), 'Use microphone and camera')]")).await {
-                    Ok(element) => break element,
+                    Ok(element) => {
+                        match element.click().await {
+                            Ok(_) => {
+                                println!("Clicked Use microphone and camera button");
+                                found_mic_camera = true;
+                                break;
+                            }
+                            Err(e) => {
+                                println!("Could not click microphone button: {}", e);
+                            }
+                        }
+                    }
                     Err(_) => {
-                        println!("Use microphone and camera button not found, retrying in 2 seconds...");
-                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        println!("Use microphone and camera button not found (attempt {})", attempt);
+                        if attempt < 3 {
+                            tokio::time::sleep(Duration::from_secs(2)).await;
+                        }
                     }
                 }
             }
         }
-    };
-    mic_camera_button.click().await?;
-    println!("Clicked Use microphone and camera button");
+    }
+    if !found_mic_camera {
+        println!("Use microphone and camera button not found - continuing without it");
+    }
     
     // Step 5: Wait for and click "Join" button with retries (including click retries)
     println!("Looking for Join button...");
