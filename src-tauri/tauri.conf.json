@@ -13,15 +13,15 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "RCTV Kiosk",
-        "width": 800,
-        "height": 600,
-        "fullscreen": true,
-        "decorations": false,
-        "resizable": false,
-        "maximized": true,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
+        "title": "RCTV Controller",
+        "width": 400,
+        "height": 300,
+        "fullscreen": false,
+        "decorations": true,
+        "resizable": true,
+        "maximized": false,
+        "alwaysOnTop": false,
+        "skipTaskbar": false,
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
       }
     ],
