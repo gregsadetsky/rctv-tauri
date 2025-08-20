@@ -382,6 +382,32 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         println!("Join button state (attempt {}) - enabled: {}, displayed: {}, selected: {}, tag: {}", 
                 join_attempts, is_enabled, is_displayed, is_selected, tag_name);
         
+        // Get more detailed element info
+        match join_button.rect().await {
+            Ok(rect) => {
+                println!("Button dimensions - x: {}, y: {}, width: {}, height: {}", 
+                        rect.x, rect.y, rect.width, rect.height);
+            }
+            Err(e) => {
+                println!("Could not get button dimensions: {}", e);
+            }
+        }
+        
+        // Check CSS properties that might block interaction
+        let pointer_events = join_button.css_value("pointer-events").await.unwrap_or_default();
+        let visibility = join_button.css_value("visibility").await.unwrap_or_default();
+        let display = join_button.css_value("display").await.unwrap_or_default();
+        let opacity = join_button.css_value("opacity").await.unwrap_or_default();
+        let z_index = join_button.css_value("z-index").await.unwrap_or_default();
+        
+        println!("Button CSS - pointer-events: {}, visibility: {}, display: {}, opacity: {}, z-index: {}", 
+                pointer_events, visibility, display, opacity, z_index);
+        
+        // Try scrolling the element into view first
+        println!("Scrolling button into view...");
+        let _ = driver.execute("arguments[0].scrollIntoView({behavior: 'instant', block: 'center'});", 
+                              vec![join_button.to_json()?]).await;
+        
         // Try to click the button multiple times before falling back to JavaScript
         let mut click_succeeded = false;
         for click_attempt in 1..=3 {
