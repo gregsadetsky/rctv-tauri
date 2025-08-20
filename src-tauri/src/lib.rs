@@ -596,10 +596,54 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
 async fn start_hid_controller() -> std::io::Result<()> {
     let state = Arc::new(std::sync::Mutex::new(AutomationState::WaitingForStart));
     
-    println!("Starting hid-recorder in background...");
+    println!("Starting hid-recorder to discover devices...");
     
-    // Start hid-recorder
+    // First run hid-recorder to discover devices
+    let mut discovery_process = Command::new("hid-recorder")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    
+    let stdout = discovery_process.stdout.take().expect("Failed to get stdout");
+    let reader = BufReader::new(stdout);
+    
+    let mut jabra_device_path = None;
+    
+    // Read output until we find the device list and "Select the device" prompt
+    for line in reader.lines() {
+        let line = line?;
+        println!("HID discovery: {}", line);
+        
+        // Look for Jabra device
+        if line.contains("Jabra") && line.starts_with("# /dev/hidraw") {
+            // Extract device path (e.g., "/dev/hidraw1" from "# /dev/hidraw1:     Jabra SPEAK 410 USB")
+            if let Some(colon_pos) = line.find(':') {
+                let device_part = &line[2..colon_pos]; // Remove "# " prefix
+                jabra_device_path = Some(device_part.to_string());
+                println!("Found Jabra device: {}", device_part);
+            }
+        }
+        
+        // When we see the selection prompt, we're done with discovery
+        if line.contains("Select the device event number") {
+            println!("Device discovery complete, killing discovery process...");
+            break;
+        }
+    }
+    
+    // Kill the discovery process
+    let _ = discovery_process.kill();
+    let _ = discovery_process.wait();
+    
+    let jabra_path = jabra_device_path.ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::NotFound, "Jabra device not found")
+    })?;
+    
+    println!("Starting hid-recorder with Jabra device: {}", jabra_path);
+    
+    // Now start hid-recorder with the specific device
     let mut hid_process = Command::new("hid-recorder")
+        .arg(&jabra_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
