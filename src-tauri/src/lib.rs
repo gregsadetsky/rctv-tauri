@@ -647,13 +647,11 @@ async fn start_hid_controller() -> std::io::Result<()> {
     all_lines.extend(stderr_lines);
     
     let mut jabra_device_path = None;
-    let mut all_output = Vec::new();
     
-    // Read output until we find the device list and "Select the device" prompt
-    for line in reader.lines() {
-        let line = line?;
-        println!("HID discovery: {}", line);
-        all_output.push(line.clone());
+    // Print all output for debugging
+    println!("=== COMPLETE HID-RECORDER OUTPUT ===");
+    for (source, line) in &all_lines {
+        println!("{}: {}", source, line);
         
         // Look for Jabra device - any line containing Jabra
         if line.contains("Jabra") {
@@ -674,24 +672,8 @@ async fn start_hid_controller() -> std::io::Result<()> {
                 }
             }
         }
-        
-        // When we see the selection prompt, we're done with discovery
-        if line.contains("Select the device") {
-            println!("Device discovery complete, killing discovery process...");
-            break;
-        }
-    }
-    
-    // Print all output for debugging
-    println!("=== COMPLETE HID-RECORDER OUTPUT ===");
-    for output_line in &all_output {
-        println!("{}", output_line);
     }
     println!("=== END HID-RECORDER OUTPUT ===");
-    
-    // Kill the discovery process
-    let _ = discovery_process.kill();
-    let _ = discovery_process.wait();
     
     let jabra_path = jabra_device_path.ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::NotFound, "Jabra device not found")
