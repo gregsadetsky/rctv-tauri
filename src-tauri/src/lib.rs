@@ -250,6 +250,66 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                             match iframe_result {
                                 Ok(element) => {
                                     println!("Found Join button in iframe {}", i);
+                                    
+                                    // Try to click immediately while we're in the right iframe
+                                    println!("Attempting to click Join button in iframe {}", i);
+                                    for click_attempt in 1..=3 {
+                                        println!("Trying standard click in iframe (attempt {} of 3)...", click_attempt);
+                                        match element.click().await {
+                                            Ok(_) => {
+                                                println!("Standard click succeeded in iframe!");
+                                                
+                                                // Wait and check if we're in the meeting
+                                                tokio::time::sleep(Duration::from_secs(3)).await;
+                                                let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
+                                                println!("Current URL after iframe click: {}", current_url);
+                                                
+                                                let in_meeting = current_url.contains("zoomgov.com") || 
+                                                                current_url.contains("meeting") ||
+                                                                current_url.contains("launch") ||
+                                                                current_url.contains("/j/") ||
+                                                                !current_url.contains("/wc/");
+                                                
+                                                if in_meeting {
+                                                    println!("Successfully joined meeting from iframe!");
+                                                    return Ok(());
+                                                } else {
+                                                    println!("Click in iframe didn't work, trying next attempt...");
+                                                }
+                                            }
+                                            Err(e) => {
+                                                println!("Standard click in iframe attempt {} failed: {}", click_attempt, e);
+                                                if click_attempt < 3 {
+                                                    tokio::time::sleep(Duration::from_secs(1)).await;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Try JavaScript click in iframe as fallback
+                                    println!("Trying JavaScript click in iframe {}...", i);
+                                    match driver.execute("arguments[0].click();", vec![element.to_json()?]).await {
+                                        Ok(_) => {
+                                            println!("JavaScript click executed in iframe");
+                                            tokio::time::sleep(Duration::from_secs(3)).await;
+                                            let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
+                                            
+                                            let in_meeting = current_url.contains("zoomgov.com") || 
+                                                            current_url.contains("meeting") ||
+                                                            current_url.contains("launch") ||
+                                                            current_url.contains("/j/") ||
+                                                            !current_url.contains("/wc/");
+                                            
+                                            if in_meeting {
+                                                println!("Successfully joined meeting with JavaScript click in iframe!");
+                                                return Ok(());
+                                            }
+                                        }
+                                        Err(e) => {
+                                            println!("JavaScript click in iframe failed: {}", e);
+                                        }
+                                    }
+                                    
                                     found_in_iframe = Some(element);
                                     break;
                                 }
