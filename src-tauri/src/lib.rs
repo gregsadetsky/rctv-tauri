@@ -280,67 +280,96 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         
         println!("Join button state - enabled: {}, displayed: {}, tag: {}", is_enabled, is_displayed, tag_name);
         
-        // Try to click the button, with fallback methods
-        let click_result = join_button.click().await;
-        match click_result {
-            Ok(_) => {
-                println!("Clicked Join button - should now be in the meeting!");
-                break;
-            }
-            Err(e) => {
-                println!("Standard click failed ({}), trying JavaScript click...", e);
-                
-                // Try JavaScript click as fallback
-                match driver.execute("arguments[0].click();", vec![join_button.to_json()?]).await {
-                    Ok(_) => {
-                        println!("JavaScript click executed, waiting to see if it worked...");
-                        
-                        // Wait a moment and check if we're now in a meeting (URL change, new elements, etc.)
-                        tokio::time::sleep(Duration::from_secs(3)).await;
-                        let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
-                        println!("Current URL after click attempt: {}", current_url);
-                        
-                        // Check if we're now in the meeting (look for actual meeting indicators)
-                        println!("Checking if we're actually in a meeting...");
-                        
-                        // Better indicators that we're in a meeting
-                        let in_meeting = current_url.contains("zoomgov.com") || 
-                                        current_url.contains("meeting") ||
-                                        current_url.contains("launch") ||
-                                        current_url.contains("/j/") ||
-                                        !current_url.contains("/wc/"); // We've left the web client page
-                        
-                        println!("Meeting indicators - zoomgov: {}, meeting: {}, launch: {}, /j/: {}, left wc: {}", 
-                                current_url.contains("zoomgov.com"),
-                                current_url.contains("meeting"),
-                                current_url.contains("launch"), 
-                                current_url.contains("/j/"),
-                                !current_url.contains("/wc/"));
-                        
-                        if in_meeting {
-                            println!("Successfully joined meeting!");
-                            break;
-                        } else {
-                            println!("JavaScript click didn't seem to work (URL unchanged)");
-                            if join_attempts >= 10 {
-                                println!("Too many failed attempts, giving up on Join button");
-                                break;
-                            }
-                            println!("Retrying... (attempt {} of 10)", join_attempts + 1);
-                            let _ = driver.enter_default_frame().await;
-                            tokio::time::sleep(Duration::from_secs(2)).await;
-                        }
+        // Try to click the button multiple times before falling back to JavaScript
+        let mut click_succeeded = false;
+        for click_attempt in 1..=3 {
+            println!("Trying standard click (attempt {} of 3)...", click_attempt);
+            match join_button.click().await {
+                Ok(_) => {
+                    println!("Standard click succeeded!");
+                    click_succeeded = true;
+                    break;
+                }
+                Err(e) => {
+                    println!("Standard click attempt {} failed: {}", click_attempt, e);
+                    if click_attempt < 3 {
+                        tokio::time::sleep(Duration::from_secs(1)).await;
                     }
-                    Err(js_e) => {
-                        println!("JavaScript click also failed ({})", js_e);
+                }
+            }
+        }
+        
+        if click_succeeded {
+            // Wait and check if we're in the meeting
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
+            println!("Current URL after standard click: {}", current_url);
+            
+            let in_meeting = current_url.contains("zoomgov.com") || 
+                            current_url.contains("meeting") ||
+                            current_url.contains("launch") ||
+                            current_url.contains("/j/") ||
+                            !current_url.contains("/wc/");
+            
+            if in_meeting {
+                println!("Successfully joined meeting with standard click!");
+                break;
+            } else {
+                println!("Standard click didn't work, continuing to retry...");
+            }
+        } else {
+            println!("All standard clicks failed, trying JavaScript click...");
+            
+            // Try JavaScript click as fallback
+            match driver.execute("arguments[0].click();", vec![join_button.to_json()?]).await {
+                Ok(_) => {
+                    println!("JavaScript click executed, waiting to see if it worked...");
+                    
+                    // Wait a moment and check if we're now in a meeting (URL change, new elements, etc.)
+                    tokio::time::sleep(Duration::from_secs(3)).await;
+                    let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
+                    println!("Current URL after click attempt: {}", current_url);
+                    
+                    // Check if we're now in the meeting (look for actual meeting indicators)
+                    println!("Checking if we're actually in a meeting...");
+                    
+                    // Better indicators that we're in a meeting
+                    let in_meeting = current_url.contains("zoomgov.com") || 
+                                    current_url.contains("meeting") ||
+                                    current_url.contains("launch") ||
+                                    current_url.contains("/j/") ||
+                                    !current_url.contains("/wc/"); // We've left the web client page
+                    
+                    println!("Meeting indicators - zoomgov: {}, meeting: {}, launch: {}, /j/: {}, left wc: {}", 
+                            current_url.contains("zoomgov.com"),
+                            current_url.contains("meeting"),
+                            current_url.contains("launch"), 
+                            current_url.contains("/j/"),
+                            !current_url.contains("/wc/"));
+                    
+                    if in_meeting {
+                        println!("Successfully joined meeting!");
+                        break;
+                    } else {
+                        println!("JavaScript click didn't seem to work (URL unchanged)");
                         if join_attempts >= 10 {
                             println!("Too many failed attempts, giving up on Join button");
                             break;
                         }
-                        println!("Retrying in 2 seconds... (attempt {} of 10)", join_attempts + 1);
-                        let _ = driver.enter_default_frame().await; // Reset frame context
+                        println!("Retrying... (attempt {} of 10)", join_attempts + 1);
+                        let _ = driver.enter_default_frame().await;
                         tokio::time::sleep(Duration::from_secs(2)).await;
                     }
+                }
+                Err(js_e) => {
+                    println!("JavaScript click also failed ({})", js_e);
+                    if join_attempts >= 10 {
+                        println!("Too many failed attempts, giving up on Join button");
+                        break;
+                    }
+                    println!("Retrying in 2 seconds... (attempt {} of 10)", join_attempts + 1);
+                    let _ = driver.enter_default_frame().await; // Reset frame context
+                    tokio::time::sleep(Duration::from_secs(2)).await;
                 }
             }
         }
