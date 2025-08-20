@@ -608,28 +608,47 @@ async fn start_hid_controller() -> std::io::Result<()> {
     let reader = BufReader::new(stdout);
     
     let mut jabra_device_path = None;
+    let mut all_output = Vec::new();
     
     // Read output until we find the device list and "Select the device" prompt
     for line in reader.lines() {
         let line = line?;
         println!("HID discovery: {}", line);
+        all_output.push(line.clone());
         
-        // Look for Jabra device
-        if line.contains("Jabra") && line.starts_with("# /dev/hidraw") {
-            // Extract device path (e.g., "/dev/hidraw1" from "# /dev/hidraw1:     Jabra SPEAK 410 USB")
-            if let Some(colon_pos) = line.find(':') {
-                let device_part = &line[2..colon_pos]; // Remove "# " prefix
-                jabra_device_path = Some(device_part.to_string());
-                println!("Found Jabra device: {}", device_part);
+        // Look for Jabra device - any line containing Jabra
+        if line.contains("Jabra") {
+            println!("Found Jabra line: {}", line);
+            // Extract device path - look for /dev/hidraw pattern
+            if let Some(dev_start) = line.find("/dev/hidraw") {
+                if let Some(colon_pos) = line[dev_start..].find(':') {
+                    let device_part = &line[dev_start..dev_start + colon_pos];
+                    jabra_device_path = Some(device_part.to_string());
+                    println!("Found Jabra device: {}", device_part);
+                } else {
+                    // Maybe no colon, try to extract just the device path
+                    let words: Vec<&str> = line[dev_start..].split_whitespace().collect();
+                    if !words.is_empty() {
+                        jabra_device_path = Some(words[0].to_string());
+                        println!("Found Jabra device (no colon): {}", words[0]);
+                    }
+                }
             }
         }
         
         // When we see the selection prompt, we're done with discovery
-        if line.contains("Select the device event number") {
+        if line.contains("Select the device") {
             println!("Device discovery complete, killing discovery process...");
             break;
         }
     }
+    
+    // Print all output for debugging
+    println!("=== COMPLETE HID-RECORDER OUTPUT ===");
+    for output_line in &all_output {
+        println!("{}", output_line);
+    }
+    println!("=== END HID-RECORDER OUTPUT ===");
     
     // Kill the discovery process
     let _ = discovery_process.kill();
