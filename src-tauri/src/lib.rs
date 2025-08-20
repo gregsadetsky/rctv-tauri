@@ -13,15 +13,26 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         .arg("-f")
         .arg("chromium")
         .output();
-    let _ = Command::new("pkill")
-        .arg("-f")
-        .arg("chrome")
-        .output();
     
     // Wait a moment for processes to die
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    // Start ChromeDriver process
+    // Start Chromium directly with remote debugging
+    println!("Starting Chromium with remote debugging...");
+    let _chromium = Command::new("/usr/bin/chromium-browser")
+        .arg("--remote-debugging-port=9222")
+        .arg("--user-data-dir=/home/rctv/.rctv-chrome-profile")
+        .arg("--autoplay-policy=no-user-gesture-required")
+        .arg("--use-fake-ui-for-media-stream")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to start Chromium");
+
+    // Wait for Chromium to start
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    // Start ChromeDriver and connect to existing Chromium
     println!("Starting ChromeDriver...");
     let _chromedriver = Command::new("chromedriver")
         .arg("--port=9515")
@@ -30,20 +41,14 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         .spawn()
         .expect("Failed to start ChromeDriver - make sure it's installed");
 
-    // Wait a moment for ChromeDriver to start
+    // Wait for ChromeDriver to start
     tokio::time::sleep(Duration::from_secs(2)).await;
 
-    // Create Chrome capabilities - ChromeDriver will start Chrome automatically
+    // Connect to the existing Chromium instance
     let mut caps = DesiredCapabilities::chrome();
-    // Tell ChromeDriver where to find Chromium on Raspberry Pi
-    caps.set_binary("/usr/bin/chromium-browser")?;
-    // Enable real camera and microphone access
-    caps.add_arg("--use-fake-ui-for-media-stream")?; // Auto-grant media permissions without user prompt
-    caps.add_arg("--autoplay-policy=no-user-gesture-required")?; // Allow autoplay for media
-    caps.add_arg("--user-data-dir=/home/rctv/.rctv-chrome-profile")?; // Persistent profile directory
+    caps.add_experimental_option("debuggerAddress", "localhost:9222")?;
     
-    // Connect to ChromeDriver (which will automatically start Chrome)
-    println!("Connecting to ChromeDriver and starting Chrome...");
+    println!("Connecting to existing Chromium instance...");
     let driver = WebDriver::new("http://localhost:9515", caps).await?;
     
     // Navigate to example.com
