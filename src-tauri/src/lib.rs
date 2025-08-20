@@ -300,8 +300,24 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                         let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
                         println!("Current URL after click attempt: {}", current_url);
                         
-                        // Check if we're now in the meeting (URL contains meeting indicators)
-                        if current_url.contains("meeting") || current_url.contains("launch") || current_url.contains("join") {
+                        // Check if we're now in the meeting (look for actual meeting indicators)
+                        println!("Checking if we're actually in a meeting...");
+                        
+                        // Better indicators that we're in a meeting
+                        let in_meeting = current_url.contains("zoomgov.com") || 
+                                        current_url.contains("meeting") ||
+                                        current_url.contains("launch") ||
+                                        current_url.contains("/j/") ||
+                                        !current_url.contains("/wc/"); // We've left the web client page
+                        
+                        println!("Meeting indicators - zoomgov: {}, meeting: {}, launch: {}, /j/: {}, left wc: {}", 
+                                current_url.contains("zoomgov.com"),
+                                current_url.contains("meeting"),
+                                current_url.contains("launch"), 
+                                current_url.contains("/j/"),
+                                !current_url.contains("/wc/"));
+                        
+                        if in_meeting {
                             println!("Successfully joined meeting!");
                             break;
                         } else {
