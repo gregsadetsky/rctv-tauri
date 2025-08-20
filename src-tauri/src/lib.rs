@@ -91,27 +91,51 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     // Automate sign-in process
     println!("Starting automated sign-in process...");
     
-    // Step 1: Wait for and click "sign in" link with retries
-    println!("Looking for sign in link...");
-    let sign_in_link = loop {
-        match driver.find(By::LinkText("sign in")).await {
-            Ok(element) => break element,
+    // Step 1: Switch to iframe and click "sign in" link
+    println!("Looking for iframe and sign in link...");
+    
+    // Wait for iframe to load and switch to it
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    let iframes = driver.find_all(By::Tag("iframe")).await?;
+    println!("Found {} iframes", iframes.len());
+    
+    let mut sign_in_link = None;
+    'outer: loop {
+        // Try to find the link in the main page first
+        match driver.find(By::XPath("//a[contains(text(), 'sign in')]")).await {
+            Ok(element) => {
+                sign_in_link = Some(element);
+                break 'outer;
+            }
             Err(_) => {
-                match driver.find(By::XPath("//a[contains(text(), 'sign in')]")).await {
-                    Ok(element) => break element,
-                    Err(_) => {
-                        match driver.find(By::XPath("//a[contains(text(), 'Sign In') or contains(text(), 'Sign in') or contains(text(), 'SIGN IN')]")).await {
-                            Ok(element) => break element,
-                            Err(_) => {
-                                println!("Sign in link not found, retrying in 2 seconds...");
-                                tokio::time::sleep(Duration::from_secs(2)).await;
+                // Try each iframe
+                for (i, _iframe) in iframes.iter().enumerate() {
+                    println!("Switching to iframe {}", i);
+                    match driver.enter_frame(i as u16).await {
+                        Ok(_) => {
+                            match driver.find(By::XPath("//a[contains(text(), 'sign in')]")).await {
+                                Ok(element) => {
+                                    println!("Found sign in link in iframe {}", i);
+                                    sign_in_link = Some(element);
+                                    break 'outer;
+                                }
+                                Err(_) => {
+                                    // Switch back to main content and try next iframe
+                                    let _ = driver.enter_default_frame().await;
+                                }
                             }
+                        }
+                        Err(_) => {
+                            println!("Failed to switch to iframe {}", i);
                         }
                     }
                 }
+                println!("Sign in link not found in any iframe, retrying in 2 seconds...");
+                tokio::time::sleep(Duration::from_secs(2)).await;
             }
         }
-    };
+    }
+    let sign_in_link = sign_in_link.unwrap();
     sign_in_link.click().await?;
     println!("Clicked sign in link");
     
