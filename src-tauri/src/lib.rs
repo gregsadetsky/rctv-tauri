@@ -77,6 +77,17 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     
     println!("Successfully opened Zoom meeting in Chromium");
     
+    // Debug: Check what page we're on
+    tokio::time::sleep(Duration::from_secs(3)).await; // Wait for page to load
+    let current_url = driver.current_url().await?;
+    let page_title = driver.title().await?;
+    let page_source = driver.source().await?;
+    
+    println!("Current URL: {}", current_url);
+    println!("Page title: {}", page_title);
+    println!("Page source length: {} characters", page_source.len());
+    println!("First 500 chars of page: {}", &page_source[..std::cmp::min(500, page_source.len())]);
+    
     // Automate sign-in process
     println!("Starting automated sign-in process...");
     
@@ -89,7 +100,7 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                 match driver.find(By::XPath("//a[contains(text(), 'sign in')]")).await {
                     Ok(element) => break element,
                     Err(_) => {
-                        match driver.find(By::XPath("//a[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'sign in')]")).await {
+                        match driver.find(By::XPath("//a[contains(text(), 'Sign In') or contains(text(), 'Sign in') or contains(text(), 'SIGN IN')]")).await {
                             Ok(element) => break element,
                             Err(_) => {
                                 println!("Sign in link not found, retrying in 2 seconds...");
