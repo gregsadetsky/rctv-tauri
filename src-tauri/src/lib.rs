@@ -25,6 +25,9 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         .arg("--autoplay-policy=no-user-gesture-required")
         .arg("--disable-logging")
         .arg("--log-level=3")
+        .arg("--disable-dev-shm-usage")
+        .arg("--disable-extensions")
+        .arg("--disable-gpu")
         .stdout(Stdio::null()) // Hide Chromium output
         .stderr(Stdio::null())
         .spawn()
