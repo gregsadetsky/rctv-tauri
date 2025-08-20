@@ -251,8 +251,15 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                                 Ok(element) => {
                                     println!("Found Join button in iframe {}", i);
                                     
+                                    // Check button visibility and state
+                                    let is_enabled = element.is_enabled().await.unwrap_or(false);
+                                    let is_displayed = element.is_displayed().await.unwrap_or(false);
+                                    let is_selected = element.is_selected().await.unwrap_or(false);
+                                    println!("Button state in iframe {} - enabled: {}, displayed: {}, selected: {}", 
+                                            i, is_enabled, is_displayed, is_selected);
+                                    
                                     // Try to click immediately while we're in the right iframe
-                                    println!("Attempting to click Join button in iframe {}", i);
+                                    println!("Attempting to interact with Join button in iframe {}", i);
                                     for click_attempt in 1..=3 {
                                         println!("Trying standard click in iframe (attempt {} of 3)...", click_attempt);
                                         match element.click().await {
@@ -279,6 +286,36 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
                                             }
                                             Err(e) => {
                                                 println!("Standard click in iframe attempt {} failed: {}", click_attempt, e);
+                                                
+                                                // Try pressing Enter as alternative
+                                                println!("Trying Enter key press instead...");
+                                                match element.send_keys("\n").await {
+                                                    Ok(_) => {
+                                                        println!("Enter key press succeeded!");
+                                                        
+                                                        // Wait and check if we're in the meeting
+                                                        tokio::time::sleep(Duration::from_secs(3)).await;
+                                                        let current_url = driver.current_url().await.map(|u| u.to_string()).unwrap_or_default();
+                                                        println!("Current URL after Enter press: {}", current_url);
+                                                        
+                                                        let in_meeting = current_url.contains("zoomgov.com") || 
+                                                                        current_url.contains("meeting") ||
+                                                                        current_url.contains("launch") ||
+                                                                        current_url.contains("/j/") ||
+                                                                        !current_url.contains("/wc/");
+                                                        
+                                                        if in_meeting {
+                                                            println!("Successfully joined meeting with Enter key!");
+                                                            return Ok(());
+                                                        } else {
+                                                            println!("Enter key didn't work either, continuing...");
+                                                        }
+                                                    }
+                                                    Err(enter_e) => {
+                                                        println!("Enter key press also failed: {}", enter_e);
+                                                    }
+                                                }
+                                                
                                                 if click_attempt < 3 {
                                                     tokio::time::sleep(Duration::from_secs(1)).await;
                                                 }
