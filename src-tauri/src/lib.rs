@@ -23,7 +23,6 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         .arg("--remote-debugging-port=9222")
         .arg("--user-data-dir=/home/rctv/.rctv-chrome-profile")
         .arg("--autoplay-policy=no-user-gesture-required")
-        .arg("--use-fake-ui-for-media-stream")
         .arg("--enable-logging")
         .arg("--v=1")
         .stdout(Stdio::inherit()) // Show Chromium output
@@ -77,6 +76,50 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     driver.goto("https://app.zoom.us/wc/2125949362/join?fromPWA=1&pwd=OEJ3Nkw4djlmSlBBVWl2aVdXTk93Zz09").await?;
     
     println!("Successfully opened Zoom meeting in Chromium");
+    
+    // Automate sign-in process
+    println!("Starting automated sign-in process...");
+    
+    // Step 1: Wait for and click "Sign In" link
+    println!("Looking for Sign In link...");
+    let sign_in_link = match driver.find(By::LinkText("Sign In")).await {
+        Ok(element) => element,
+        Err(_) => driver.find(By::XPath("//a[contains(text(), 'Sign In')]")).await?,
+    };
+    sign_in_link.click().await?;
+    println!("Clicked Sign In link");
+    
+    // Step 2: Wait for and click Google sign-in button
+    println!("Looking for Google sign-in button...");
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    let google_button = match driver.find(By::XPath("//button[@aria-label='Sign in with Google']")).await {
+        Ok(element) => element,
+        Err(_) => driver.find(By::XPath("//*[contains(@aria-label, 'Google')]")).await?,
+    };
+    google_button.click().await?;
+    println!("Clicked Google sign-in button");
+    
+    // Step 3: Wait for and click "Recurse RCTV" account
+    println!("Looking for Recurse RCTV account...");
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    let recurse_account = driver.find(By::XPath("//div[contains(text(), 'Recurse RCTV')]")).await?;
+    recurse_account.click().await?;
+    println!("Selected Recurse RCTV account");
+    
+    // Step 4: Wait for and click "Join" button
+    println!("Looking for Join button...");
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    let join_button = match driver.find(By::XPath("//button[contains(text(), 'Join')]")).await {
+        Ok(element) => element,
+        Err(_) => match driver.find(By::XPath("//input[@value='Join']")).await {
+            Ok(element) => element,
+            Err(_) => driver.find(By::XPath("//*[contains(text(), 'Join')]")).await?,
+        },
+    };
+    join_button.click().await?;
+    println!("Clicked Join button - should now be in the meeting!");
+    
+    println!("Automation complete!");
     
     // Keep the browser open
     loop {
