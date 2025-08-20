@@ -35,9 +35,9 @@
       "args": [
         {
           "name": "token",
-          "description": "TV login token for RCTV API access",
+          "description": "TV login token for RCTV API access (optional if /root/.rctvtoken exists)",
           "takesValue": true,
-          "required": true
+          "required": false
         }
       ]
     },
