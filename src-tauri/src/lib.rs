@@ -691,13 +691,13 @@ async fn start_hid_controller() -> std::io::Result<()> {
     let stdout = hid_process.stdout.take().expect("Failed to get stdout");
     let reader = BufReader::new(stdout);
     
-    println!("HID recorder started, monitoring for signal: E: 000027.018024 3 03 01 00");
+    println!("HID recorder started, monitoring for signal: 3 03 01 00");
     
     for line in reader.lines() {
         let line = line?;
         
-        // Check for the specific signal
-        if line.contains("E: 000027.018024 3 03 01 00") {
+        // Check for the specific signal (ignore timestamp, just look for the data part)
+        if line.contains("3 03 01 00") {
             let current_state = {
                 let state_guard = state.lock().unwrap();
                 *state_guard
