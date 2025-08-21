@@ -48,7 +48,7 @@
     }
   },
   "bundle": {
-    "active": true,
+    "active": false,
     "targets": "all",
     "createUpdaterArtifacts": true,
     "icon": [
@@ -59,6 +59,9 @@
       "icons/icon.ico"
     ],
     "linux": {
+      "deb": {
+        "depends": ["chromium-browser", "chromium-chromedriver"]
+      },
       "appimage": {
         "bundleMediaFramework": true
       }

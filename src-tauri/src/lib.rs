@@ -1,9 +1,8 @@
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::io::{BufRead, BufReader};
-use tauri::{Manager, Emitter};
+use tauri::Manager;
 use tauri_plugin_cli::CliExt;
 use thirtyfour::prelude::*;
 use url::Url;
@@ -255,7 +254,7 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     let iframes = driver.find_all(By::Tag("iframe")).await?;
     println!("Found {} iframes", iframes.len());
     
-    let mut sign_in_link = None;
+    let sign_in_link;
     'outer: loop {
         // Try to find the link in the main page first
         match driver.find(By::XPath("//a[contains(text(), 'sign in')]")).await {

@@ -34,7 +34,12 @@ sudo apt-get install -y \
     librsvg2-dev \
     libssl-dev \
     pkg-config \
-    libasound2-dev
+    libasound2-dev \
+    chromium-browser \
+    chromium-chromedriver \
+    file \
+    patchelf \
+    desktop-file-utils
 
 echo "2. Installing Node.js..."
 if ! command -v node &> /dev/null; then
@@ -52,16 +57,40 @@ else
     echo "Rust already installed: $(cargo --version)"
 fi
 
-echo "4. Cloning RCTV source code..."
+echo "4. Installing linuxdeploy for AppImage creation..."
+if ! command -v linuxdeploy &> /dev/null; then
+    cd /tmp
+    # Detect architecture
+    ARCH=$(uname -m)
+    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+        echo "ARM64 detected, installing ARM64 version of linuxdeploy"
+        wget -O linuxdeploy-aarch64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-aarch64.AppImage
+        chmod +x linuxdeploy-aarch64.AppImage
+        sudo mv linuxdeploy-aarch64.AppImage /usr/local/bin/linuxdeploy
+    elif [ "$ARCH" = "armv7l" ]; then
+        echo "ARM32 detected - linuxdeploy not available, will try to build without AppImage"
+        echo "Note: AppImage creation may fail on ARM32"
+    else
+        echo "x86_64 detected, installing x86_64 version of linuxdeploy"
+        wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        chmod +x linuxdeploy-x86_64.AppImage
+        sudo mv linuxdeploy-x86_64.AppImage /usr/local/bin/linuxdeploy
+    fi
+    echo "linuxdeploy installation completed"
+else
+    echo "linuxdeploy already installed"
+fi
+
+echo "5. Cloning RCTV source code..."
 cd /tmp
 rm -rf rctv-tauri
 git clone https://github.com/gregsadetsky/rctv-tauri.git
 cd rctv-tauri
 
-echo "5. Installing Node.js dependencies..."
+echo "6. Installing Node.js dependencies..."
 npm install
 
-echo "6. Building application (this may take 15-20 minutes)..."
+echo "7. Building application (this may take 15-20 minutes)..."
 echo "Building with signing keys for auto-updates..."
 
 # Set up signing environment from files
@@ -91,7 +120,7 @@ export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$(cat "$PASSWORD_PATH")
 # Build the application
 npm run tauri build
 
-echo "7. Installing the built application..."
+echo "8. Installing the built application..."
 # Find the built .deb file
 DEB_FILE=$(find src-tauri/target/release/bundle/deb -name "*.deb" | head -1)
 
@@ -123,7 +152,7 @@ else
     fi
 fi
 
-echo "8. Setting up systemd service..."
+echo "9. Setting up systemd service..."
 USER_ID=$(id -u)
 sudo tee /etc/systemd/system/rctv-kiosk.service > /dev/null << EOF
 [Unit]
