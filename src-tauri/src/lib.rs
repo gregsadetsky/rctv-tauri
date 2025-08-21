@@ -181,6 +181,13 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         .arg("--disable-dev-shm-usage")
         .arg("--disable-extensions")
         .arg("--disable-gpu")
+        .arg("--hide-crash-restore-bubble")
+        .arg("--disable-session-crashed-bubble")
+        .arg("--allow-running-insecure-content")
+        .arg("--disable-web-security")
+        .arg("--disable-features=VizDisplayCompositor")
+        .arg("--disable-user-media-security")
+        .arg("--allow-file-access-from-files")
         .stdout(Stdio::null()) // Hide Chromium output
         .stderr(Stdio::null())
         .spawn()
@@ -369,6 +376,10 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     if !found_mic_camera {
         println!("Use microphone and camera button not found - continuing without it");
     }
+    
+    // Step 5: Wait for camera to initialize before looking for Join button
+    println!("Waiting 5 seconds for camera initialization...");
+    tokio::time::sleep(Duration::from_secs(5)).await;
     
     // Step 5: Wait for and click "Join" button with retries (check iframes too)
     println!("Looking for Join button...");
