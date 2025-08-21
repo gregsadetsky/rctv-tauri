@@ -173,6 +173,9 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     // Start Chromium directly with remote debugging
     println!("Starting Chromium with remote debugging...");
     let _chromium = Command::new("/usr/bin/chromium-browser")
+        .env("DISPLAY", ":0")
+        .env("PULSE_RUNTIME_PATH", "/run/user/1000/pulse")
+        .env("PULSE_SERVER", "unix:/run/user/1000/pulse/native")
         .arg("--remote-debugging-port=9222")
         .arg("--user-data-dir=/home/rctv/.rctv-chrome-profile")
         .arg("--autoplay-policy=no-user-gesture-required")
@@ -187,6 +190,10 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         .arg("--disable-features=VizDisplayCompositor")
         .arg("--disable-user-media-security")
         .arg("--allow-file-access-from-files")
+        .arg("--use-fake-ui-for-media-stream")
+        .arg("--allow-file-access")
+        .arg("--disable-features=MediaRouter")
+        .arg("--enable-features=VaapiVideoDecoder")
         .stdout(Stdio::null()) // Hide Chromium output
         .stderr(Stdio::null())
         .spawn()
@@ -250,11 +257,27 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
     println!("Page source length: {} characters", page_source.len());
     println!("First 500 chars of page: {}", &page_source[..std::cmp::min(500, page_source.len())]);
     
-    // Automate sign-in process
-    println!("Starting automated sign-in process...");
+    // Check if we're already signed in and can see the Join button immediately
+    println!("Checking if already signed in (looking for Join button)...");
     
-    // Step 1: Switch to iframe and click "sign in" link
-    println!("Looking for iframe and sign in link...");
+    // First check if Join button is already visible (skip sign-in if so)
+    let join_button_check = driver.find(By::XPath("//*[contains(text(), 'Join')]")).await;
+    let skip_signin = join_button_check.is_ok();
+    
+    if skip_signin {
+        println!("Join button found immediately - already signed in, skipping sign-in process");
+        
+        // Wait a moment for camera to initialize
+        println!("Waiting 3 seconds for camera initialization...");
+        tokio::time::sleep(Duration::from_secs(3)).await;
+    } else {
+        println!("Join button not found, proceeding with sign-in process...");
+        
+        // Automate sign-in process
+        println!("Starting automated sign-in process...");
+        
+        // Step 1: Switch to iframe and click "sign in" link
+        println!("Looking for iframe and sign in link...");
     
     // Find iframes immediately
     let iframes = driver.find_all(By::Tag("iframe")).await?;
@@ -372,13 +395,14 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
             }
         }
     }
-    if !found_mic_camera {
-        println!("Use microphone and camera button not found - continuing without it");
-    }
-    
-    // Step 5: Wait for camera to initialize before looking for Join button
-    println!("Waiting 5 seconds for camera initialization...");
-    tokio::time::sleep(Duration::from_secs(5)).await;
+        if !found_mic_camera {
+            println!("Use microphone and camera button not found - continuing without it");
+        }
+        
+        // Step 5: Wait for camera to initialize before looking for Join button
+        println!("Waiting 5 seconds for camera initialization...");
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    } // End of sign-in process
     
     // Step 5: Wait for and click "Join" button with retries (check iframes too)
     println!("Looking for Join button...");
