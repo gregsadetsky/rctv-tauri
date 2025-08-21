@@ -659,7 +659,7 @@ async fn start_hid_controller(token: String, app_handle: Arc<tauri::AppHandle>, 
     println!("Starting hid-recorder to discover devices...");
     
     // First run hid-recorder to discover devices
-    let mut discovery_process = Command::new("hid-recorder")
+    let mut discovery_process = Command::new("/home/rctv/.cargo/bin/hid-recorder")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
@@ -742,7 +742,7 @@ async fn start_hid_controller(token: String, app_handle: Arc<tauri::AppHandle>, 
     println!("Starting hid-recorder with Jabra device: {}", jabra_path);
     
     // Now start hid-recorder with the specific device
-    let mut hid_process = Command::new("hid-recorder")
+    let mut hid_process = Command::new("/home/rctv/.cargo/bin/hid-recorder")
         .arg(&jabra_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
