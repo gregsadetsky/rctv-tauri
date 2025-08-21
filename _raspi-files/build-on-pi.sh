@@ -153,7 +153,9 @@ Environment=DISPLAY=:0
 Environment=WAYLAND_DISPLAY=wayland-0
 Environment=XDG_RUNTIME_DIR=/run/user/$USER_ID
 Environment="WEBKIT_DISABLE_DMABUF_RENDERER=1"
-ExecStart=/usr/local/bin/rctv-kiosk --token $TOKEN
+Environment=PATH=/home/rctv/.cargo/bin:/usr/local/bin:/usr/bin:/bin
+WorkingDirectory=/home/rctv/rctv-tauri
+ExecStart=/usr/bin/npm run tauri dev -- -- --token $TOKEN
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -184,7 +186,7 @@ echo "  Status:  sudo systemctl status rctv-kiosk"
 echo "  Logs:    sudo journalctl -u rctv-kiosk -f"
 echo ""
 echo "Test manually first:"
-echo "  rctv-kiosk --token $TOKEN"
+echo "  cd /home/rctv/rctv-tauri && npm run tauri dev -- -- --token $TOKEN"
 echo ""
 echo "The service will start automatically on boot."
 echo ""

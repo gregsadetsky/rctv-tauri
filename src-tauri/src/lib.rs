@@ -184,7 +184,6 @@ async fn start_chromium_controller() -> WebDriverResult<()> {
         .arg("--hide-crash-restore-bubble")
         .arg("--disable-session-crashed-bubble")
         .arg("--allow-running-insecure-content")
-        .arg("--disable-web-security")
         .arg("--disable-features=VizDisplayCompositor")
         .arg("--disable-user-media-security")
         .arg("--allow-file-access-from-files")
