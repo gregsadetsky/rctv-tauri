@@ -121,35 +121,20 @@ export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$(cat "$PASSWORD_PATH")
 npm run tauri build
 
 echo "8. Installing the built application..."
-# Find the built .deb file
-DEB_FILE=$(find src-tauri/target/release/bundle/deb -name "*.deb" | head -1)
+# Check if the raw binary exists (bundling disabled)
+BINARY_FILE="src-tauri/target/release/rctv-tauri"
 
-if [ -z "$DEB_FILE" ]; then
-    echo "No .deb file found, trying AppImage..."
-    APPIMAGE_FILE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" | head -1)
-    
-    if [ -z "$APPIMAGE_FILE" ]; then
-        echo "No built files found! Build may have failed."
-        exit 1
-    fi
-    
-    # Install AppImage
+if [ -f "$BINARY_FILE" ]; then
+    echo "Found built binary: $BINARY_FILE"
+    # Install the raw binary
     sudo mkdir -p /opt/rctv-kiosk
-    sudo cp "$APPIMAGE_FILE" /opt/rctv-kiosk/rctv-kiosk.AppImage
-    sudo chmod +x /opt/rctv-kiosk/rctv-kiosk.AppImage
-    sudo ln -sf /opt/rctv-kiosk/rctv-kiosk.AppImage /usr/local/bin/rctv-kiosk
-    echo "Installed AppImage to /opt/rctv-kiosk/"
+    sudo cp "$BINARY_FILE" /opt/rctv-kiosk/rctv-tauri
+    sudo chmod +x /opt/rctv-kiosk/rctv-tauri
+    sudo ln -sf /opt/rctv-kiosk/rctv-tauri /usr/local/bin/rctv-kiosk
+    echo "Installed binary to /opt/rctv-kiosk/rctv-tauri and linked as rctv-kiosk"
 else
-    # Install .deb package
-    echo "Installing .deb package: $DEB_FILE"
-    sudo dpkg -i "$DEB_FILE" || sudo apt-get install -f -y
-    
-    # Find the installed binary and link it
-    BINARY_PATH=$(which rctv-tauri || find /usr -name "rctv-tauri" 2>/dev/null | head -1)
-    if [ -n "$BINARY_PATH" ]; then
-        sudo ln -sf "$BINARY_PATH" /usr/local/bin/rctv-kiosk
-        echo "Installed .deb package and linked binary"
-    fi
+    echo "No binary found at $BINARY_FILE! Build may have failed."
+    exit 1
 fi
 
 echo "9. Setting up systemd service..."
